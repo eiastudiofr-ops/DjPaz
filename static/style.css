@@ -258,15 +258,16 @@ html, body.vdj-theme {
 
 /* 3. Top Scrolling Waveforms Engine (36px) */
 .vdj-dual-waveform-engine {
-    height: 38px;
-    min-height: 38px;
+    height: 52px;
+    min-height: 52px;
+    max-height: 52px;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.5rem;
     background: #05060a;
     border: 1px solid var(--vdj-border);
     border-radius: 6px;
-    padding: 0.25rem 0.5rem;
+    padding: 0.2rem 0.5rem;
 }
 
 .vdj-wave-deck {
@@ -452,9 +453,10 @@ html, body.vdj-theme {
 .deck-card-a { border-top: 2px solid var(--deck-a-color); }
 .deck-card-b { border-top: 2px solid var(--deck-b-color); }
 
-/* Compact LCD Screen (22px) */
+/* Compact LCD Screen (24px) */
 .vdj-lcd-screen {
-    height: 22px;
+    height: 24px;
+    min-height: 24px;
     background: #06080d;
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 3px;
@@ -462,6 +464,7 @@ html, body.vdj-theme {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    overflow: hidden;
 }
 
 .lcd-label { font-size: 0.52rem; color: var(--text-dim); font-weight: 700; }

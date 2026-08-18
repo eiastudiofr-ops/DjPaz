@@ -100,24 +100,19 @@
                     
                     <!-- ================= DECK A (CYAN) ================= -->
                     <div class="vdj-deck-card deck-card-a">
-                        <!-- Compact LCD Header -->
+                        <!-- Compact Clean LCD Header -->
                         <div class="vdj-lcd-screen lcd-a">
                             <div class="lcd-time-box">
                                 <span class="lcd-label">TIEMPO</span>
                                 <span id="deck-a-time-current" class="lcd-digits">00:00.0</span>
                             </div>
-                            <div class="lcd-meta-box">
-                                <span class="lcd-sub">BPM / KEY</span>
-                                <div style="display:flex; align-items:center; gap:4px;">
-                                    <strong id="deck-a-bpm-digits">128.00</strong>
-                                    <span id="deck-a-key-badge" class="lcd-key-tag">8A</span>
-                                </div>
+                            <div class="lcd-meta-box" style="display:flex; align-items:center; gap:5px;">
+                                <span class="lcd-sub">BPM</span>
+                                <strong id="deck-a-bpm-digits">128.00</strong>
+                                <span id="deck-a-key-badge" class="lcd-key-tag" title="Tono Camelot">8A</span>
+                                <button class="btn-pro-mini active" id="btn-keylock-a" onclick="toggleDeckKeyLock('a')" title="Key Lock / Master Tempo (Mantiene el tono)">🔒</button>
                             </div>
-                            <div class="lcd-time-box right" style="display:flex; align-items:center; gap:0.2rem;">
-                                <button class="btn-pro-mini active" id="btn-keylock-a" onclick="toggleDeckKeyLock('a')" title="Key Lock / Master Tempo">🔒 KEY</button>
-                                <button class="btn-pro-mini" onclick="tapDeckBpm('a')" title="TAP BPM">TAP</button>
-                                <button class="btn-pro-mini" onclick="nudgeDeckGrid('a', -1)" title="Grid «">«</button>
-                                <button class="btn-pro-mini" onclick="nudgeDeckGrid('a', 1)" title="Grid »">»</button>
+                            <div class="lcd-time-box right" style="display:flex; align-items:center; gap:5px;">
                                 <div>
                                     <span class="lcd-label">PITCH</span>
                                     <span id="deck-a-pitch-val" class="lcd-pitch-tag">0.0%</span>
@@ -150,16 +145,16 @@
 
                         <!-- Vinyl & Loop Controls Strip -->
                         <div class="deck-loop-vinyl-bar">
-                            <button class="btn-vinyl active" id="btn-vinyl-a" onclick="toggleDeckVinyl('a')">💿 VINYL</button>
+                            <div style="display:flex; align-items:center; gap:3px;">
+                                <button class="btn-vinyl active" id="btn-vinyl-a" onclick="toggleDeckVinyl('a')">💿 VINYL</button>
+                                <button class="btn-pro-mini" onclick="tapDeckBpm('a')" title="TAP BPM (Calcular ritmo pulsando)">TAP</button>
+                            </div>
                             <div class="loop-btn-cluster">
                                 <button class="btn-loop-ctrl" id="btn-loop-a-in" onclick="setDeckLoopIn('a')">IN</button>
                                 <button class="btn-loop-ctrl" id="btn-loop-a-out" onclick="setDeckLoopOut('a')">OUT</button>
-                                <button class="btn-loop-ctrl" onclick="setDeckLoop('a', 0.5)">1/2</button>
-                                <button class="btn-loop-ctrl" onclick="setDeckLoop('a', 1)">1B</button>
-                                <button class="btn-loop-ctrl" onclick="setDeckLoop('a', 2)">2B</button>
+                                <button class="btn-loop-ctrl" onclick="halveDeckLoop('a')">1/2</button>
+                                <button class="btn-loop-ctrl" onclick="doubleDeckLoop('a')">2X</button>
                                 <button class="btn-loop-ctrl" onclick="setDeckLoop('a', 4)">4B</button>
-                                <button class="btn-loop-ctrl" onclick="setDeckLoop('a', 8)">8B</button>
-                                <button class="btn-loop-ctrl" onclick="setDeckLoop('a', 16)">16B</button>
                                 <button class="btn-loop-ctrl btn-loop-exit" id="btn-loop-a-exit" onclick="exitDeckLoop('a')">✕</button>
                             </div>
                         </div>
@@ -285,24 +280,19 @@
 
                     <!-- ================= DECK B (MINT / RED) ================= -->
                     <div class="vdj-deck-card deck-card-b">
-                        <!-- Compact LCD Header -->
+                        <!-- Compact Clean LCD Header -->
                         <div class="vdj-lcd-screen lcd-b">
                             <div class="lcd-time-box">
                                 <span class="lcd-label">TIEMPO</span>
                                 <span id="deck-b-time-current" class="lcd-digits">00:00.0</span>
                             </div>
-                            <div class="lcd-meta-box">
-                                <span class="lcd-sub">BPM / KEY</span>
-                                <div style="display:flex; align-items:center; gap:4px;">
-                                    <strong id="deck-b-bpm-digits">128.00</strong>
-                                    <span id="deck-b-key-badge" class="lcd-key-tag">11B</span>
-                                </div>
+                            <div class="lcd-meta-box" style="display:flex; align-items:center; gap:5px;">
+                                <span class="lcd-sub">BPM</span>
+                                <strong id="deck-b-bpm-digits">128.00</strong>
+                                <span id="deck-b-key-badge" class="lcd-key-tag" title="Tono Camelot">11B</span>
+                                <button class="btn-pro-mini active" id="btn-keylock-b" onclick="toggleDeckKeyLock('b')" title="Key Lock / Master Tempo (Mantiene el tono)">🔒</button>
                             </div>
-                            <div class="lcd-time-box right" style="display:flex; align-items:center; gap:0.2rem;">
-                                <button class="btn-pro-mini active" id="btn-keylock-b" onclick="toggleDeckKeyLock('b')" title="Key Lock / Master Tempo">🔒 KEY</button>
-                                <button class="btn-pro-mini" onclick="tapDeckBpm('b')" title="TAP BPM">TAP</button>
-                                <button class="btn-pro-mini" onclick="nudgeDeckGrid('b', -1)" title="Grid «">«</button>
-                                <button class="btn-pro-mini" onclick="nudgeDeckGrid('b', 1)" title="Grid »">»</button>
+                            <div class="lcd-time-box right" style="display:flex; align-items:center; gap:5px;">
                                 <div>
                                     <span class="lcd-label">PITCH</span>
                                     <span id="deck-b-pitch-val" class="lcd-pitch-tag">0.0%</span>
@@ -335,17 +325,18 @@
 
                         <!-- Vinyl & Loop Controls Strip -->
                         <div class="deck-loop-vinyl-bar">
-                            <button class="btn-vinyl active" id="btn-vinyl-b" onclick="toggleDeckVinyl('b')">💿 VINYL</button>
+                            <div style="display:flex; align-items:center; gap:3px;">
+                                <button class="btn-vinyl active" id="btn-vinyl-b" onclick="toggleDeckVinyl('b')">💿 VINYL</button>
+                                <button class="btn-pro-mini" onclick="tapDeckBpm('b')" title="TAP BPM (Calcular ritmo pulsando)">TAP</button>
+                            </div>
                             <div class="loop-btn-cluster">
                                 <button class="btn-loop-ctrl" id="btn-loop-b-in" onclick="setDeckLoopIn('b')">IN</button>
                                 <button class="btn-loop-ctrl" id="btn-loop-b-out" onclick="setDeckLoopOut('b')">OUT</button>
-                                <button class="btn-loop-ctrl" onclick="setDeckLoop('b', 0.5)">1/2</button>
-                                <button class="btn-loop-ctrl" onclick="setDeckLoop('b', 1)">1B</button>
-                                <button class="btn-loop-ctrl" onclick="setDeckLoop('b', 2)">2B</button>
+                                <button class="btn-loop-ctrl" onclick="halveDeckLoop('b')">1/2</button>
+                                <button class="btn-loop-ctrl" onclick="doubleDeckLoop('b')">2X</button>
                                 <button class="btn-loop-ctrl" onclick="setDeckLoop('b', 4)">4B</button>
-                                <button class="btn-loop-ctrl" onclick="setDeckLoop('b', 8)">8B</button>
-                                <button class="btn-loop-ctrl" onclick="setDeckLoop('b', 16)">16B</button>
                                 <button class="btn-loop-ctrl btn-loop-exit" id="btn-loop-b-exit" onclick="exitDeckLoop('b')">✕</button>
+                            </div>
                         </div>
 
                         <!-- Minimalist Pads (Hot Cues & Loops) -->
