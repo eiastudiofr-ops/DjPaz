@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="djgrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00d2ff"/>
+      <stop offset="100%" stop-color="#00f5a0"/>
+    </linearGradient>
+    <radialGradient id="discgrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1e2433"/>
+      <stop offset="70%" stop-color="#0e111a"/>
+      <stop offset="100%" stop-color="#06080c"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#discgrad)"/>
+  <circle cx="256" cy="256" r="190" stroke="rgba(255,255,255,0.06)" stroke-width="4" fill="none"/>
+  <circle cx="256" cy="256" r="140" stroke="rgba(255,255,255,0.08)" stroke-width="4" fill="none"/>
+  <circle cx="256" cy="256" r="90" stroke="rgba(255,255,255,0.1)" stroke-width="4" fill="none"/>
+  <circle cx="256" cy="256" r="46" fill="url(#djgrad)"/>
+  <circle cx="256" cy="256" r="16" fill="#0c0e14"/>
+  <!-- Download arrow -->
+  <path d="M256 120 L256 200 M230 174 L256 200 L282 174" stroke="url(#djgrad)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
