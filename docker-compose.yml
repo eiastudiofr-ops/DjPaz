@@ -1,0 +1,14 @@
+services:
+  djpaz:
+    build: .
+    container_name: djpaz-studio
+    restart: unless-stopped
+    ports:
+      - "4848:4848"
+    volumes:
+      # Maps your local Music directory to the container's music library
+      - ./music:/music
+    environment:
+      - PORT=4848
+      - HOST=0.0.0.0
+      - DJPAZ_MUSIC_DIR=/music

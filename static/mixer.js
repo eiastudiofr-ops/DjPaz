@@ -1891,3 +1891,74 @@ document.addEventListener('click', () => {
         window.djAudioCtx.resume();
     }
 }, { once: true });
+
+// Universal Laptop Keyboard Controls (For any computer without a controller)
+document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+        return;
+    }
+
+    if (!window.djMixer || !window.djMixer.initialized) {
+        window.djMixer.init();
+    }
+
+    const key = e.key.toLowerCase();
+
+    // Deck A Hotkeys
+    if (key === 'q') {
+        window.djMixer.deckA.togglePlay(e.shiftKey);
+    } else if (key === 'w') {
+        window.djMixer.deckA.cue(true, e.shiftKey);
+    } else if (key === 'e') {
+        window.djMixer.deckA.sync(e.shiftKey);
+    } else if (key === '1') {
+        window.handlePadClick('a', 1);
+    } else if (key === '2') {
+        window.handlePadClick('a', 2);
+    } else if (key === '3') {
+        window.handlePadClick('a', 3);
+    } else if (key === '4') {
+        window.handlePadClick('a', 4);
+    } else if (key === 'tab') {
+        e.preventDefault();
+        window.toggleDeckPFL('a');
+    }
+
+    // Deck B Hotkeys
+    else if (key === 'u') {
+        window.djMixer.deckB.togglePlay(e.shiftKey);
+    } else if (key === 'i') {
+        window.djMixer.deckB.cue(true, e.shiftKey);
+    } else if (key === 'o') {
+        window.djMixer.deckB.sync(e.shiftKey);
+    } else if (key === '7') {
+        window.handlePadClick('b', 1);
+    } else if (key === '8') {
+        window.handlePadClick('b', 2);
+    } else if (key === '9') {
+        window.handlePadClick('b', 3);
+    } else if (key === '0') {
+        window.handlePadClick('b', 4);
+    } else if (key === '\\' || key === 'p') {
+        window.toggleDeckPFL('b');
+    }
+
+    // Mixer Hotkeys
+    else if (key === ' ') {
+        e.preventDefault();
+        const isDeckAPlaying = window.djMixer.deckA.audio && !window.djMixer.deckA.audio.paused;
+        if (isDeckAPlaying) window.djMixer.deckA.togglePlay();
+        else window.djMixer.deckB.togglePlay();
+    }
+});
+
+document.addEventListener('keyup', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    const key = e.key.toLowerCase();
+    if (key === 'w' && window.djMixer?.deckA) {
+        window.djMixer.deckA.cue(false, e.shiftKey);
+    } else if (key === 'i' && window.djMixer?.deckB) {
+        window.djMixer.deckB.cue(false, e.shiftKey);
+    }
+});
+
