@@ -29,9 +29,16 @@
 
             <!-- Toolbar Actions: Status, Settings & Fullscreen -->
             <div class="header-right-actions">
+                <button id="btn-toggle-rec" class="btn-rec-toggle" onclick="toggleSetRecording()" title="Grabar Sesión DJ en Vivo a WAV/WebM">
+                    <span class="rec-dot"></span> <span id="rec-status-text">REC</span> <span id="rec-timer" style="display:none; font-family:var(--font-digital); margin-left:4px;">00:00</span>
+                </button>
+                <button id="btn-toggle-mic" class="btn-mic-talkover" onclick="toggleMicTalkover()" title="Micrófono en vivo con Auto-Ducking">
+                    🎤 MIC
+                </button>
+
                 <div id="midi-pill" class="status-badge-midi">
                     <span class="pulse-indicator"></span>
-                    <span id="midi-name-text">Hercules Inpulse 200</span>
+                    <span id="midi-name-text">MIDI Universal</span>
                 </div>
 
                 <button id="btn-open-settings" class="btn-settings-toggle" title="Configurar Entradas y Salidas">⚙️ Opciones</button>
@@ -49,17 +56,23 @@
                  =================================================================== -->
             <section id="tab-mixer" class="tab-pane active full-mixer-pane">
                 
-                <!-- TOP COMPACT SCROLLING BEAT WAVEFORMS -->
+                <!-- TOP COMPACT SCROLLING BEAT WAVEFORMS + OVERVIEW RIBBONS -->
                 <div class="vdj-dual-waveform-engine">
                     <!-- Deck A Waveform -->
                     <div class="vdj-wave-deck vdj-wave-deck-a">
                         <div class="vdj-wave-track-header">
                             <span class="vdj-deck-tag deck-tag-a">DECK A</span>
                             <span id="deck-a-title" class="vdj-wave-title">Carga una canción en Deck A</span>
+                            <span id="deck-a-key-header" class="vdj-wave-key" title="Tonalidad Musical (Camelot)">8A (Am)</span>
                             <span id="deck-a-bpm" class="vdj-wave-bpm">128.00 BPM</span>
                         </div>
+                        <!-- Mini Full-Track Overview (Needle Drop) -->
+                        <div class="overview-canvas-wrapper" onclick="handleNeedleDrop('a', event)" title="Clic para saltar a cualquier punto de la pista">
+                            <canvas id="canvas-overview-a" class="vdj-canvas-overview" width="740" height="10"></canvas>
+                        </div>
+                        <!-- Real-Time Scrolling Zoom Waveform -->
                         <div class="wave-canvas-wrapper">
-                            <canvas id="canvas-wave-a" class="vdj-canvas-wave" width="740" height="26"></canvas>
+                            <canvas id="canvas-wave-a" class="vdj-canvas-wave" width="740" height="24"></canvas>
                         </div>
                     </div>
 
@@ -68,10 +81,16 @@
                         <div class="vdj-wave-track-header">
                             <span class="vdj-deck-tag deck-tag-b">DECK B</span>
                             <span id="deck-b-title" class="vdj-wave-title">Carga una canción en Deck B</span>
+                            <span id="deck-b-key-header" class="vdj-wave-key" title="Tonalidad Musical (Camelot)">11B (A)</span>
                             <span id="deck-b-bpm" class="vdj-wave-bpm">128.00 BPM</span>
                         </div>
+                        <!-- Mini Full-Track Overview (Needle Drop) -->
+                        <div class="overview-canvas-wrapper" onclick="handleNeedleDrop('b', event)" title="Clic para saltar a cualquier punto de la pista">
+                            <canvas id="canvas-overview-b" class="vdj-canvas-overview" width="740" height="10"></canvas>
+                        </div>
+                        <!-- Real-Time Scrolling Zoom Waveform -->
                         <div class="wave-canvas-wrapper">
-                            <canvas id="canvas-wave-b" class="vdj-canvas-wave" width="740" height="26"></canvas>
+                            <canvas id="canvas-wave-b" class="vdj-canvas-wave" width="740" height="24"></canvas>
                         </div>
                     </div>
                 </div>
@@ -88,10 +107,17 @@
                                 <span id="deck-a-time-current" class="lcd-digits">00:00.0</span>
                             </div>
                             <div class="lcd-meta-box">
-                                <span class="lcd-sub">BPM</span>
-                                <strong id="deck-a-bpm-digits">128.00</strong>
+                                <span class="lcd-sub">BPM / KEY</span>
+                                <div style="display:flex; align-items:center; gap:4px;">
+                                    <strong id="deck-a-bpm-digits">128.00</strong>
+                                    <span id="deck-a-key-badge" class="lcd-key-tag">8A</span>
+                                </div>
                             </div>
-                            <div class="lcd-time-box right" style="display:flex; align-items:center; gap:0.25rem;">
+                            <div class="lcd-time-box right" style="display:flex; align-items:center; gap:0.2rem;">
+                                <button class="btn-pro-mini active" id="btn-keylock-a" onclick="toggleDeckKeyLock('a')" title="Key Lock / Master Tempo">🔒 KEY</button>
+                                <button class="btn-pro-mini" onclick="tapDeckBpm('a')" title="TAP BPM">TAP</button>
+                                <button class="btn-pro-mini" onclick="nudgeDeckGrid('a', -1)" title="Grid «">«</button>
+                                <button class="btn-pro-mini" onclick="nudgeDeckGrid('a', 1)" title="Grid »">»</button>
                                 <div>
                                     <span class="lcd-label">PITCH</span>
                                     <span id="deck-a-pitch-val" class="lcd-pitch-tag">0.0%</span>
@@ -128,9 +154,12 @@
                             <div class="loop-btn-cluster">
                                 <button class="btn-loop-ctrl" id="btn-loop-a-in" onclick="setDeckLoopIn('a')">IN</button>
                                 <button class="btn-loop-ctrl" id="btn-loop-a-out" onclick="setDeckLoopOut('a')">OUT</button>
-                                <button class="btn-loop-ctrl" onclick="halveDeckLoop('a')">1/2</button>
-                                <button class="btn-loop-ctrl" onclick="doubleDeckLoop('a')">2X</button>
+                                <button class="btn-loop-ctrl" onclick="setDeckLoop('a', 0.5)">1/2</button>
+                                <button class="btn-loop-ctrl" onclick="setDeckLoop('a', 1)">1B</button>
+                                <button class="btn-loop-ctrl" onclick="setDeckLoop('a', 2)">2B</button>
                                 <button class="btn-loop-ctrl" onclick="setDeckLoop('a', 4)">4B</button>
+                                <button class="btn-loop-ctrl" onclick="setDeckLoop('a', 8)">8B</button>
+                                <button class="btn-loop-ctrl" onclick="setDeckLoop('a', 16)">16B</button>
                                 <button class="btn-loop-ctrl btn-loop-exit" id="btn-loop-a-exit" onclick="exitDeckLoop('a')">✕</button>
                             </div>
                         </div>
@@ -159,11 +188,10 @@
                         </div>
                     </div>
 
-                    <!-- ================= CENTER MIXER (COMPACT 2-CH) ================= -->
-                    <div class="vdj-mixer-chassis">
-                        <div class="mixer-brand-badge">MIXER 2-CH</div>
-
-                        <!-- 2-Channel EQ Section -->
+                    <!-- ================= CENTER 2-CH MIXER & MASTER ================= -->
+                    <div class="vdj-center-mixer">
+                        
+                        <!-- Top Rotary Matrix: Gain, High, Mid, Low, Filter -->
                         <div class="mixer-eq-matrix">
                             <!-- Deck A Strip -->
                             <div class="eq-column eq-col-a">
@@ -244,11 +272,11 @@
                             </div>
                         </div>
 
-                        <!-- Horizontal Crossfader -->
+                        <!-- Horizontal Crossfader with Automix Pill -->
                         <div class="mixer-crossfader-strip">
                             <div class="crossfader-text-labels">
                                 <span class="xf-label-a">A</span>
-                                <span class="xf-label-center">CROSSFADER</span>
+                                <button id="btn-toggle-automix" class="btn-automix-pill" onclick="toggleAutomix()" title="Mezcla Inteligente Automática entre Decks">⚡ AUTOMIX</button>
                                 <span class="xf-label-b">B</span>
                             </div>
                             <input type="range" id="mixer-crossfader" class="vdj-crossfader" min="0" max="100" value="50" step="1">
@@ -264,10 +292,17 @@
                                 <span id="deck-b-time-current" class="lcd-digits">00:00.0</span>
                             </div>
                             <div class="lcd-meta-box">
-                                <span class="lcd-sub">BPM</span>
-                                <strong id="deck-b-bpm-digits">128.00</strong>
+                                <span class="lcd-sub">BPM / KEY</span>
+                                <div style="display:flex; align-items:center; gap:4px;">
+                                    <strong id="deck-b-bpm-digits">128.00</strong>
+                                    <span id="deck-b-key-badge" class="lcd-key-tag">11B</span>
+                                </div>
                             </div>
-                            <div class="lcd-time-box right" style="display:flex; align-items:center; gap:0.25rem;">
+                            <div class="lcd-time-box right" style="display:flex; align-items:center; gap:0.2rem;">
+                                <button class="btn-pro-mini active" id="btn-keylock-b" onclick="toggleDeckKeyLock('b')" title="Key Lock / Master Tempo">🔒 KEY</button>
+                                <button class="btn-pro-mini" onclick="tapDeckBpm('b')" title="TAP BPM">TAP</button>
+                                <button class="btn-pro-mini" onclick="nudgeDeckGrid('b', -1)" title="Grid «">«</button>
+                                <button class="btn-pro-mini" onclick="nudgeDeckGrid('b', 1)" title="Grid »">»</button>
                                 <div>
                                     <span class="lcd-label">PITCH</span>
                                     <span id="deck-b-pitch-val" class="lcd-pitch-tag">0.0%</span>
@@ -304,11 +339,13 @@
                             <div class="loop-btn-cluster">
                                 <button class="btn-loop-ctrl" id="btn-loop-b-in" onclick="setDeckLoopIn('b')">IN</button>
                                 <button class="btn-loop-ctrl" id="btn-loop-b-out" onclick="setDeckLoopOut('b')">OUT</button>
-                                <button class="btn-loop-ctrl" onclick="halveDeckLoop('b')">1/2</button>
-                                <button class="btn-loop-ctrl" onclick="doubleDeckLoop('b')">2X</button>
+                                <button class="btn-loop-ctrl" onclick="setDeckLoop('b', 0.5)">1/2</button>
+                                <button class="btn-loop-ctrl" onclick="setDeckLoop('b', 1)">1B</button>
+                                <button class="btn-loop-ctrl" onclick="setDeckLoop('b', 2)">2B</button>
                                 <button class="btn-loop-ctrl" onclick="setDeckLoop('b', 4)">4B</button>
+                                <button class="btn-loop-ctrl" onclick="setDeckLoop('b', 8)">8B</button>
+                                <button class="btn-loop-ctrl" onclick="setDeckLoop('b', 16)">16B</button>
                                 <button class="btn-loop-ctrl btn-loop-exit" id="btn-loop-b-exit" onclick="exitDeckLoop('b')">✕</button>
-                            </div>
                         </div>
 
                         <!-- Minimalist Pads (Hot Cues & Loops) -->

@@ -128,20 +128,82 @@ html, body.vdj-theme {
 .header-right-actions {
     display: flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 0.4rem;
+}
+
+/* 🔴 LIVE DJ RECORDER BUTTON */
+.btn-rec-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.55rem;
+    background: rgba(255, 71, 87, 0.1);
+    border: 1px solid rgba(255, 71, 87, 0.35);
+    border-radius: 4px;
+    color: #ff4757;
+    font-size: 0.72rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.btn-rec-toggle .rec-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ff4757;
+}
+.btn-rec-toggle:hover {
+    background: rgba(255, 71, 87, 0.2);
+    border-color: #ff4757;
+}
+.btn-rec-toggle.recording {
+    background: #ff4757;
+    color: #fff;
+    box-shadow: 0 0 10px rgba(255, 71, 87, 0.6);
+}
+.btn-rec-toggle.recording .rec-dot {
+    background: #fff;
+    animation: pulse-rec-dot 1s infinite;
+}
+@keyframes pulse-rec-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.2; transform: scale(0.7); }
+}
+
+/* 🎤 MIC TALKOVER BUTTON */
+.btn-mic-talkover {
+    padding: 0.2rem 0.5rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.btn-mic-talkover:hover {
+    border-color: var(--cue-amber);
+    color: #fff;
+}
+.btn-mic-talkover.active {
+    background: var(--cue-amber);
+    color: #000;
+    font-weight: 800;
+    box-shadow: 0 0 8px rgba(255, 170, 0, 0.5);
 }
 
 .status-badge-midi {
     display: flex;
     align-items: center;
-    gap: 0.3rem;
-    background: rgba(0, 245, 160, 0.08);
-    border: 1px solid rgba(0, 245, 160, 0.25);
+    gap: 0.35rem;
     padding: 0.15rem 0.5rem;
+    background: rgba(0, 210, 255, 0.08);
+    border: 1px solid rgba(0, 210, 255, 0.25);
     border-radius: 4px;
+    color: var(--deck-a-color);
     font-size: 0.7rem;
-    font-weight: 700;
-    color: var(--deck-b-color);
+    font-weight: 600;
 }
 
 .pulse-indicator {
@@ -247,10 +309,41 @@ html, body.vdj-theme {
     color: var(--cue-amber);
 }
 
+.vdj-wave-key {
+    font-family: var(--font-digital);
+    font-size: 0.65rem;
+    color: #ff007f;
+    font-weight: 700;
+    background: rgba(255, 0, 127, 0.12);
+    padding: 0 4px;
+    border-radius: 2px;
+    border: 1px solid rgba(255, 0, 127, 0.3);
+}
+
+.overview-canvas-wrapper {
+    position: relative;
+    width: 100%;
+    height: 10px;
+    background: #040508;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 2px;
+    overflow: hidden;
+    cursor: crosshair;
+    margin-bottom: 2px;
+}
+.overview-canvas-wrapper:hover {
+    border-color: rgba(255, 255, 255, 0.25);
+}
+.vdj-canvas-overview {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
 .wave-canvas-wrapper {
     position: relative;
     width: 100%;
-    height: 26px;
+    height: 24px;
     background: #06080e;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 3px;
@@ -269,6 +362,65 @@ html, body.vdj-theme {
     width: 2px;
     background: rgba(255, 255, 255, 0.6);
     pointer-events: none;
+}
+
+.btn-pro-mini {
+    font-size: 0.58rem;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--text-dim);
+    border-radius: 3px;
+    padding: 1px 4px;
+    cursor: pointer;
+    line-height: 1;
+    transition: all 0.1s ease;
+}
+.btn-pro-mini:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+.btn-pro-mini.active {
+    background: #00d2ff;
+    color: #000;
+    font-weight: 800;
+    border-color: #00d2ff;
+}
+
+.lcd-key-tag {
+    font-family: var(--font-digital);
+    font-size: 0.65rem;
+    color: #ff007f;
+    font-weight: 800;
+    background: rgba(255, 0, 127, 0.15);
+    padding: 0 3px;
+    border-radius: 2px;
+}
+
+.btn-automix-pill {
+    font-size: 0.62rem;
+    font-weight: 800;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    padding: 1px 6px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.btn-automix-pill:hover {
+    background: rgba(255, 170, 0, 0.3);
+    border-color: var(--cue-amber);
+}
+.btn-automix-pill.active {
+    background: var(--cue-amber);
+    color: #000;
+    box-shadow: 0 0 8px rgba(255, 170, 0, 0.6);
+    animation: pulse-automix 1.2s infinite;
+}
+@keyframes pulse-automix {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(0.96); opacity: 0.8; }
 }
 
 /* 4. Hardware Console (DECK A | CENTER MIXER | DECK B) */

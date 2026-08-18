@@ -110,6 +110,18 @@ Si no tienes la controladora Hercules conectada, puedes mezclar en cualquier ord
 
 ---
 
+## 🚀 Funciones Pro de VirtualDJ Integradas
+
+* **🔴 Grabador de Sesiones en Vivo (`REC`):** Captura toda la mezcla de audio (Master + Micrófono + FX + Sampler) en calidad de estudio directa a archivo **WebM / WAV** descargable con un solo clic.
+* **🌊 Vista General de Canción Completa (`Overview Waveform / Needle Drop`):** Barra interactiva con toda la duración de la pista de 0:00 a fin; haz clic en cualquier punto para saltar instantáneamente a la intro, drop o breakdown.
+* **🔒 Key Lock / Master Tempo & Mezcla Armónica:** Bloqueo de tono musical independiente de la velocidad; detecta y muestra la tonalidad musical en notación **Camelot Wheel** (ej. `8A / Am`, `11B / A`).
+* **⚡ Modo AutoMix Inteligente:** Transición automática entre Decks A y B con sincronización de BPM, compases y desplazamiento suave de crossfader.
+* **🎤 Micrófono en Vivo con Auto-Ducking:** Canal de voz directo por altavoces que atenúa automáticamente la música de fondo (-12 dB) mientras el DJ habla.
+* **🔁 Selector Rápido de Auto-Loop:** Botones de bucle cuantizado instantáneo a `1/2`, `1`, `2`, `4`, `8` y `16` compases.
+* **🎯 TAP BPM & Ajuste Fino de Rejilla (`Grid Nudge`):** Botón TAP para calcular el tempo pulsando al ritmo y botones `«` `»` para desplazar la rejilla de compases.
+
+---
+
 ## 🔊 Arquitectura de Audio y Performance Pads
 
 * **Modo Hot Cue:** Salto y fijación instantánea de CUEs 1 al 4 (`SHIFT` para borrar).
