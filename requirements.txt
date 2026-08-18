@@ -1,0 +1,8 @@
+# ==============================================================================
+# DjPaz - Python Dependencies
+# ==============================================================================
+# Note: The HTTP server, API endpoints, and PipeWire integration use Python's
+# standard library (http.server, urllib, json, subprocess, threading, argparse).
+#
+# External packages for high-fidelity audio extraction and metadata analysis:
+yt-dlp>=2024.08.01

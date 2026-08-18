@@ -1,0 +1,15 @@
+[Unit]
+Description=DjPaz - Professional Web DJ Studio & Hardware Mixer Server
+Documentation=https://github.com/eiastudiofr-ops/DjPaz
+After=network.target sound.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/proyectos/DjPaz
+ExecStart=/usr/bin/python3 %h/proyectos/DjPaz/server.py --port 4848 --host 0.0.0.0
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target
