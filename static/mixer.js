@@ -1,7 +1,7 @@
 // ==========================================================================
 // VIRTUAL DJ PRO - HIGH FIDELITY AUDIO MIXER & FULL HERCULES INPULSE 200 ENGINE
 // FEATURING: DISCRETE 4-CHANNEL ROUTING (MASTER RCA 1-2 & HEADPHONE CUE 3-4)
-// AND EXACT HERCULES DJCONTROL INPULSE 200 MK2 MIDI SPECIFICATION
+// AND EXACT HERCULES DJCONTROL INPULSE 200 MK2 MIDI SPECIFICATION WITH ECHO REJECTION
 // ==========================================================================
 
 function formatTime(sec) {
@@ -744,7 +744,7 @@ class DJDeck {
         if (this.jog) {
             this.jog.classList.toggle('spinning', isPlaying);
         }
-        if (window.herculesMidi) {
+        if (window.herculesMidi && window.herculesMidi.connected) {
             window.herculesMidi.updateDeckLEDs(this.id);
         }
     }
@@ -810,6 +810,7 @@ class DJDeck {
 
     applyHardwareJogDelta(delta, isTouch, isShift = false) {
         if (!this.trackName || !this.audio) return;
+        if (Math.abs(delta) < 0.2) return;
 
         this.rotation += delta * 4.5;
         if (this.jog) {
@@ -930,7 +931,7 @@ function playDJSoundSample(sampleIdx) {
 }
 
 // -------------------------------------------------------------
-// Hercules DJControl Inpulse 200 MK2 MIDI Engine
+// Hercules DJControl Inpulse 200 MK2 MIDI Engine with Anti-Loop Guard
 // -------------------------------------------------------------
 class HerculesMidiController {
     constructor(mixer) {
@@ -946,6 +947,13 @@ class HerculesMidiController {
         this.beatmatchGuide = true;
         this.selectedCrateIndex = 0;
         this.assistantEnergy = 1;
+
+        // Anti-Loop and Debounce Maps
+        this.sentMessagesHistory = new Map();
+        this.buttonStates = new Map();
+        this.buttonLastTimes = new Map();
+        this.lastLedUpdateA = 0;
+        this.lastLedUpdateB = 0;
 
         this.pitchState = {
             a: { msb: 64, lsb: 0 },
@@ -968,14 +976,20 @@ class HerculesMidiController {
         }
     }
 
+    isInvalidMidiDevice(name) {
+        const n = (name || '').toLowerCase();
+        return n.includes('through') || n.includes('midi through') || n.includes('loop') || n.includes('virtual') || n.includes('swmidi');
+    }
+
     scanDevices() {
         if (!this.midiAccess) return;
         let herculesInput = null;
         let herculesOutput = null;
 
+        // 1. Look for genuine Hercules / DJControl hardware devices first
         for (const input of this.midiAccess.inputs.values()) {
             const name = (input.name || '').toLowerCase();
-            if (name.includes('inpulse') || name.includes('hercules') || name.includes('djcontrol')) {
+            if ((name.includes('inpulse') || name.includes('hercules') || name.includes('djcontrol') || name.includes('guillemot')) && !this.isInvalidMidiDevice(name)) {
                 herculesInput = input;
                 break;
             }
@@ -983,17 +997,28 @@ class HerculesMidiController {
 
         for (const output of this.midiAccess.outputs.values()) {
             const name = (output.name || '').toLowerCase();
-            if (name.includes('inpulse') || name.includes('hercules') || name.includes('djcontrol')) {
+            if ((name.includes('inpulse') || name.includes('hercules') || name.includes('djcontrol') || name.includes('guillemot')) && !this.isInvalidMidiDevice(name)) {
                 herculesOutput = output;
                 break;
             }
         }
 
-        if (!herculesInput && this.midiAccess.inputs.size > 0) {
-            herculesInput = this.midiAccess.inputs.values().next().value;
+        // 2. If not found by specific name, find any non-loopback hardware device
+        if (!herculesInput) {
+            for (const input of this.midiAccess.inputs.values()) {
+                if (!this.isInvalidMidiDevice(input.name)) {
+                    herculesInput = input;
+                    break;
+                }
+            }
         }
-        if (!herculesOutput && this.midiAccess.outputs.size > 0) {
-            herculesOutput = this.midiAccess.outputs.values().next().value;
+        if (!herculesOutput) {
+            for (const output of this.midiAccess.outputs.values()) {
+                if (!this.isInvalidMidiDevice(output.name)) {
+                    herculesOutput = output;
+                    break;
+                }
+            }
         }
 
         if (herculesInput) {
@@ -1022,8 +1047,11 @@ class HerculesMidiController {
     }
 
     sendMidi(bytes) {
-        if (this.output) {
+        if (this.output && bytes && bytes.length >= 2) {
             try {
+                // Record outgoing message to prevent echo loopback
+                const key = `${bytes[0]}_${bytes[1]}_${bytes[2] || 0}`;
+                this.sentMessagesHistory.set(key, performance.now());
                 this.output.send(bytes);
             } catch (err) {}
         }
@@ -1040,6 +1068,16 @@ class HerculesMidiController {
     }
 
     updateDeckLEDs(deckId) {
+        if (!this.connected || !this.output) return;
+        const now = performance.now();
+        if (deckId === 'a') {
+            if (now - this.lastLedUpdateA < 40) return;
+            this.lastLedUpdateA = now;
+        } else {
+            if (now - this.lastLedUpdateB < 40) return;
+            this.lastLedUpdateB = now;
+        }
+
         try {
             const deck = deckId === 'a' ? this.mixer.deckA : this.mixer.deckB;
             const ch = deckId === 'a' ? 0x91 : 0x92;
@@ -1087,11 +1125,19 @@ class HerculesMidiController {
             const cmd = status >> 4;
             const channel = status & 0xF;
 
+            // 1. ECHO REJECTION GUARD: Drop if this is an echo of a recently sent LED message
+            const echoKey = `${status}_${data1}_${data2}`;
+            const sentTimestamp = this.sentMessagesHistory.get(echoKey);
+            if (sentTimestamp && (performance.now() - sentTimestamp) < 300) {
+                this.sentMessagesHistory.delete(echoKey);
+                return; // Suppress loopback echo
+            }
+
             if (window.djAudioCtx && window.djAudioCtx.state === 'suspended') {
                 window.djAudioCtx.resume();
             }
 
-            // 1. BUTTONS & PADS (Note On / Off)
+            // 2. BUTTONS & PADS (Note On / Off)
             if (cmd === 9 || cmd === 8) {
                 const isDown = (cmd === 9 && data2 > 0);
 
@@ -1121,12 +1167,30 @@ class HerculesMidiController {
 
                 // ==================== CUE BUTTON RELEASE (FOR CUE PREVIEW) ====================
                 if (cmd === 8 || (cmd === 9 && data2 === 0)) {
+                    const btnKey = `${channel}_${data1}`;
+                    this.buttonStates.set(btnKey, false);
                     if (channel === 1 && data1 === 0x06) this.mixer.deckA.cue(false, this.shiftA);
                     if (channel === 2 && data1 === 0x06) this.mixer.deckB.cue(false, this.shiftB);
                     return;
                 }
 
-                if (!isDown) return;
+                // Debounce & Edge-Trigger: Ignore repeated Note On events while held
+                const btnKey = `${channel}_${data1}`;
+                if (isDown) {
+                    if (this.buttonStates.get(btnKey)) {
+                        return; // Already triggered, avoid double/infinite firing
+                    }
+                    const lastTime = this.buttonLastTimes.get(btnKey) || 0;
+                    const now = performance.now();
+                    if (now - lastTime < 70) {
+                        return; // Debounce 70ms
+                    }
+                    this.buttonStates.set(btnKey, true);
+                    this.buttonLastTimes.set(btnKey, now);
+                } else {
+                    this.buttonStates.set(btnKey, false);
+                    return;
+                }
 
                 // ==================== HEADPHONE CUE (PFL) SHORTCUTS ====================
                 if (channel === 1 && (data1 === 0x0C || data1 === 0x0A || data1 === 0x0E)) {
@@ -1253,7 +1317,7 @@ class HerculesMidiController {
                 }
             }
 
-            // 2. FADERS & KNOBS (CC)
+            // 3. FADERS & KNOBS (CC)
             else if (cmd === 11) {
                 if (channel === 0) {
                     if (data1 === 0x00) {
@@ -1548,7 +1612,6 @@ class DJMixer {
             dest.channelInterpretation = 'speakers';
 
             this.masterLimiter.connect(dest);
-            // Connect Headphone CUE to destination so pre-listening works in stereo headset setups
             this.headphoneGain.connect(dest);
             console.log('[*] 2-Channel Stereo Output Active (Master + Headphone CUE mix).');
         }
@@ -1768,7 +1831,7 @@ window.toggleDeckPFL = function(deckId) {
     const btn = document.getElementById(`btn-deck-${deckId}-pfl`);
     if (btn) btn.classList.toggle('active', deck.pflActive);
 
-    if (window.herculesMidi) {
+    if (window.herculesMidi && window.herculesMidi.connected) {
         const ch = deckId === 'a' ? 0x91 : 0x92;
         const val = deck.pflActive ? 0x7F : 0x00;
         window.herculesMidi.sendMidi([ch, 0x0C, val]);
