@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VirtualDJ Studio Pro - 1280x800 Minimalist Pro DJ Suite</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body class="vdj-theme">
+    <div class="app-container" id="app-root">
+        
+        <!-- Top Compact Minimalist Header (36px) -->
+        <header class="app-header">
+            <div class="brand">
+                <span class="vdj-logo-icon">VDJ</span>
+                <span class="brand-title">VIRTUAL DJ <span class="badge-pro">PRO</span></span>
+            </div>
+
+            <!-- Minimalist Navigation Tabs -->
+            <div class="header-center-tabs">
+                <button class="tab-btn active" data-tab="tab-mixer" id="tab-btn-mixer">🎛️ Mezclador Decks</button>
+                <button class="tab-btn" data-tab="tab-youtube" id="tab-btn-youtube">🔍 Buscar YouTube</button>
+                <button class="tab-btn" data-tab="tab-library" id="tab-btn-library">📁 Biblioteca (<span id="library-count">0</span>)</button>
+                <button class="tab-btn" data-tab="tab-queue" id="tab-btn-queue">⚡ Cola (<span id="queue-count">0</span>)</button>
+            </div>
+
+            <!-- Toolbar Actions: Status, Settings & Fullscreen -->
+            <div class="header-right-actions">
+                <div id="midi-pill" class="status-badge-midi">
+                    <span class="pulse-indicator"></span>
+                    <span id="midi-name-text">Hercules Inpulse 200</span>
+                </div>
+
+                <button id="btn-open-settings" class="btn-settings-toggle" title="Configurar Entradas y Salidas">⚙️ Opciones</button>
+                <button id="btn-toggle-fullscreen" class="btn-fullscreen-toggle" title="Pantalla Completa (F11)">
+                    <span id="fs-text-label">⛶ Pantalla Completa</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Workspace (Zero page scroll, fits 100vh) -->
+        <main class="main-workspace">
+            
+            <!-- ===================================================================
+                 TAB 0: VIRTUAL DJ FULL PROFESSIONAL MIXER SUITE
+                 =================================================================== -->
+            <section id="tab-mixer" class="tab-pane active full-mixer-pane">
+                
+                <!-- TOP COMPACT SCROLLING BEAT WAVEFORMS (36px) -->
+                <div class="vdj-dual-waveform-engine">
+                    <!-- Deck A Waveform -->
+                    <div class="vdj-wave-deck vdj-wave-deck-a">
+                        <div class="vdj-wave-track-header">
+                            <span class="vdj-deck-tag deck-tag-a">DECK A</span>
+                            <span id="deck-a-title" class="vdj-wave-title">Carga una canción en Deck A</span>
+                            <span id="deck-a-bpm" class="vdj-wave-bpm">128.00 BPM</span>
+                        </div>
+                        <div class="wave-canvas-wrapper">
+                            <canvas id="canvas-wave-a" class="vdj-canvas-wave"></canvas>
+                            <div class="center-beat-guide"></div>
+                        </div>
+                    </div>
+
+                    <!-- Deck B Waveform -->
+                    <div class="vdj-wave-deck vdj-wave-deck-b">
+                        <div class="vdj-wave-track-header">
+                            <span class="vdj-deck-tag deck-tag-b">DECK B</span>
+                            <span id="deck-b-title" class="vdj-wave-title">Carga una canción en Deck B</span>
+                            <span id="deck-b-bpm" class="vdj-wave-bpm">128.00 BPM</span>
+                        </div>
+                        <div class="wave-canvas-wrapper">
+                            <canvas id="canvas-wave-b" class="vdj-canvas-wave"></canvas>
+                            <div class="center-beat-guide"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MAIN HARDWARE CONSOLE (DECK A | CENTER MIXER | DECK B) -->
+                <div class="vdj-hardware-console">
+                    
+                    <!-- ================= DECK A (CYAN) ================= -->
+                    <div class="vdj-deck-card deck-card-a">
+                        <!-- Compact LCD Header -->
+                        <div class="vdj-lcd-screen lcd-a">
+                            <div class="lcd-time-box">
+                                <span class="lcd-label">TIEMPO</span>
+                                <span id="deck-a-time-current" class="lcd-digits">00:00.0</span>
+                            </div>
+                            <div class="lcd-meta-box">
+                                <span class="lcd-sub">BPM</span>
+                                <strong id="deck-a-bpm-digits">128.00</strong>
+                            </div>
+                            <div class="lcd-time-box right">
+                                <span class="lcd-label">PITCH</span>
+                                <span id="deck-a-pitch-val" class="lcd-pitch-tag">0.0%</span>
+                            </div>
+                        </div>
+
+                        <!-- Compact Platter & Pitch Row -->
+                        <div class="vdj-deck-platter-row">
+                            <div class="jog-wheel-outer">
+                                <div class="jog-wheel jog-a" id="jog-wheel-a">
+                                    <div class="vinyl-strobe-ring"></div>
+                                    <div class="vinyl-center-disc disc-a">
+                                        <div class="needle-marker marker-a"></div>
+                                        <span class="disc-label">DECK A</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Calibrated Pitch Fader (Up=Fast / Down=Slow / Center=0%) -->
+                            <div class="vdj-pitch-column">
+                                <span class="pitch-label-top" title="Acelerar (+%)">+ RÁPIDO</span>
+                                <input type="range" id="deck-a-pitch" class="vdj-vertical-fader pitch-fader" min="-16" max="16" step="0.05" value="0">
+                                <span class="pitch-label-bottom" title="Frenar (-%)">- LENTO</span>
+                                <button class="btn-rst-pitch" id="btn-deck-a-pitch-reset" title="Restablecer velocidad a 0%">0% RST</button>
+                            </div>
+                        </div>
+
+                        <!-- Vinyl & Loop Controls Strip -->
+                        <div class="deck-loop-vinyl-bar">
+                            <button class="btn-vinyl active" id="btn-vinyl-a" onclick="toggleDeckVinyl('a')">💿 VINYL</button>
+                            <div class="loop-btn-cluster">
+                                <button class="btn-loop-ctrl" id="btn-loop-a-in" onclick="setDeckLoopIn('a')">IN</button>
+                                <button class="btn-loop-ctrl" id="btn-loop-a-out" onclick="setDeckLoopOut('a')">OUT</button>
+                                <button class="btn-loop-ctrl" onclick="halveDeckLoop('a')">1/2</button>
+                                <button class="btn-loop-ctrl" onclick="doubleDeckLoop('a')">2X</button>
+                                <button class="btn-loop-ctrl" onclick="setDeckLoop('a', 4)">4B</button>
+                                <button class="btn-loop-ctrl btn-loop-exit" id="btn-loop-a-exit" onclick="exitDeckLoop('a')">✕</button>
+                            </div>
+                        </div>
+
+                        <!-- Minimalist Pads (Hot Cues & Loops) -->
+                        <div class="vdj-pads-section">
+                            <div class="pads-mode-strip">
+                                <button class="pad-mode-btn active" id="btn-mode-a-hotcue" onclick="setDeckPadMode('a', 'hotcue')">HOT CUE</button>
+                                <button class="pad-mode-btn" id="btn-mode-a-stems" onclick="setDeckPadMode('a', 'stems')">STEMS</button>
+                                <button class="pad-mode-btn" id="btn-mode-a-fx" onclick="setDeckPadMode('a', 'fx')">FX</button>
+                                <button class="pad-mode-btn" id="btn-mode-a-sampler" onclick="setDeckPadMode('a', 'sampler')">SAMPLER</button>
+                            </div>
+                            <div class="pads-grid-4">
+                                <button class="vdj-pad pad-a" id="pad-a-1" onclick="handlePadClick('a', 1)">1</button>
+                                <button class="vdj-pad pad-a" id="pad-a-2" onclick="handlePadClick('a', 2)">2</button>
+                                <button class="vdj-pad pad-a" id="pad-a-3" onclick="handlePadClick('a', 3)">3</button>
+                                <button class="vdj-pad pad-a" id="pad-a-4" onclick="handlePadClick('a', 4)">4</button>
+                            </div>
+                        </div>
+
+                        <!-- Minimalist Transport Buttons (CUE, PLAY, SYNC) -->
+                        <div class="vdj-transport-row">
+                            <button class="vdj-btn-transport btn-cue-orange" id="btn-deck-a-cue">CUE</button>
+                            <button class="vdj-btn-transport btn-play-green" id="btn-deck-a-play">PLAY</button>
+                            <button class="vdj-btn-transport btn-sync-blue" id="btn-deck-a-sync">SYNC</button>
+                        </div>
+                    </div>
+
+                    <!-- ================= CENTER MIXER (COMPACT 2-CH) ================= -->
+                    <div class="vdj-mixer-chassis">
+                        <div class="mixer-brand-badge">MIXER 2-CH</div>
+
+                        <!-- 2-Channel EQ Section -->
+                        <div class="mixer-eq-matrix">
+                            <!-- Deck A Strip -->
+                            <div class="eq-column eq-col-a">
+                                <span class="col-id-label col-a">CH 1</span>
+                                <div class="rotary-knob-unit">
+                                    <label>GAIN</label>
+                                    <input type="range" id="deck-a-gain" class="vdj-rotary-slider" min="0" max="2" step="0.05" value="1">
+                                </div>
+                                <div class="rotary-knob-unit">
+                                    <label>HIGH</label>
+                                    <input type="range" id="deck-a-eq-high" class="vdj-rotary-slider" min="-24" max="6" step="0.5" value="0">
+                                </div>
+                                <div class="rotary-knob-unit">
+                                    <label>MID</label>
+                                    <input type="range" id="deck-a-eq-mid" class="vdj-rotary-slider" min="-24" max="6" step="0.5" value="0">
+                                </div>
+                                <div class="rotary-knob-unit">
+                                    <label>LOW</label>
+                                    <input type="range" id="deck-a-eq-low" class="vdj-rotary-slider" min="-24" max="6" step="0.5" value="0">
+                                </div>
+                                <div class="rotary-knob-unit filter-knob">
+                                    <label>FILTER</label>
+                                    <input type="range" id="deck-a-filter" class="vdj-rotary-slider" min="-100" max="100" step="1" value="0">
+                                </div>
+                                <button class="btn-pfl-headphone" id="btn-deck-a-pfl" onclick="toggleDeckPFL('a')" title="Preescucha Auriculares">🎧 CUE 1</button>
+                            </div>
+
+                            <!-- Central Compact VU Meters -->
+                            <div class="central-vu-ladder">
+                                <div class="vu-channel-ladder">
+                                    <div class="vu-led-fill" id="vu-meter-a"></div>
+                                </div>
+                                <div class="vu-channel-ladder">
+                                    <div class="vu-led-fill" id="vu-meter-b"></div>
+                                </div>
+                            </div>
+
+                            <!-- Deck B Strip -->
+                            <div class="eq-column eq-col-b">
+                                <span class="col-id-label col-b">CH 2</span>
+                                <div class="rotary-knob-unit">
+                                    <label>GAIN</label>
+                                    <input type="range" id="deck-b-gain" class="vdj-rotary-slider" min="0" max="2" step="0.05" value="1">
+                                </div>
+                                <div class="rotary-knob-unit">
+                                    <label>HIGH</label>
+                                    <input type="range" id="deck-b-eq-high" class="vdj-rotary-slider" min="-24" max="6" step="0.5" value="0">
+                                </div>
+                                <div class="rotary-knob-unit">
+                                    <label>MID</label>
+                                    <input type="range" id="deck-b-eq-mid" class="vdj-rotary-slider" min="-24" max="6" step="0.5" value="0">
+                                </div>
+                                <div class="rotary-knob-unit">
+                                    <label>LOW</label>
+                                    <input type="range" id="deck-b-eq-low" class="vdj-rotary-slider" min="-24" max="6" step="0.5" value="0">
+                                </div>
+                                <div class="rotary-knob-unit filter-knob">
+                                    <label>FILTER</label>
+                                    <input type="range" id="deck-b-filter" class="vdj-rotary-slider" min="-100" max="100" step="1" value="0">
+                                </div>
+                                <button class="btn-pfl-headphone" id="btn-deck-b-pfl" onclick="toggleDeckPFL('b')" title="Preescucha Auriculares">🎧 CUE 2</button>
+                            </div>
+                        </div>
+
+                        <!-- Channel Volume Faders -->
+                        <div class="mixer-volume-faders-matrix">
+                            <div class="channel-fader-slot">
+                                <input type="range" id="deck-a-fader" class="vdj-vertical-fader volume-fader" min="0" max="1" step="0.01" value="1">
+                                <span>CH 1</span>
+                            </div>
+                            <div class="master-rotary-slot">
+                                <label>MASTER</label>
+                                <input type="range" id="master-volume" class="vdj-rotary-slider" min="0" max="1.5" step="0.05" value="1">
+                            </div>
+                            <div class="channel-fader-slot">
+                                <input type="range" id="deck-b-fader" class="vdj-vertical-fader volume-fader" min="0" max="1" step="0.01" value="1">
+                                <span>CH 2</span>
+                            </div>
+                        </div>
+
+                        <!-- Horizontal Crossfader -->
+                        <div class="mixer-crossfader-strip">
+                            <div class="crossfader-text-labels">
+                                <span class="xf-label-a">A</span>
+                                <span class="xf-label-center">CROSSFADER</span>
+                                <span class="xf-label-b">B</span>
+                            </div>
+                            <input type="range" id="mixer-crossfader" class="vdj-crossfader" min="0" max="100" value="50" step="1">
+                        </div>
+                    </div>
+
+                    <!-- ================= DECK B (MINT / RED) ================= -->
+                    <div class="vdj-deck-card deck-card-b">
+                        <!-- Compact LCD Header -->
+                        <div class="vdj-lcd-screen lcd-b">
+                            <div class="lcd-time-box">
+                                <span class="lcd-label">TIEMPO</span>
+                                <span id="deck-b-time-current" class="lcd-digits">00:00.0</span>
+                            </div>
+                            <div class="lcd-meta-box">
+                                <span class="lcd-sub">BPM</span>
+                                <strong id="deck-b-bpm-digits">128.00</strong>
+                            </div>
+                            <div class="lcd-time-box right">
+                                <span class="lcd-label">PITCH</span>
+                                <span id="deck-b-pitch-val" class="lcd-pitch-tag">0.0%</span>
+                            </div>
+                        </div>
+
+                        <!-- Compact Platter & Pitch Row -->
+                        <div class="vdj-deck-platter-row">
+                            <div class="jog-wheel-outer">
+                                <div class="jog-wheel jog-b" id="jog-wheel-b">
+                                    <div class="vinyl-strobe-ring"></div>
+                                    <div class="vinyl-center-disc disc-b">
+                                        <div class="needle-marker marker-b"></div>
+                                        <span class="disc-label">DECK B</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Calibrated Pitch Fader (Up=Fast / Down=Slow / Center=0%) -->
+                            <div class="vdj-pitch-column">
+                                <span class="pitch-label-top" title="Acelerar (+%)">+ RÁPIDO</span>
+                                <input type="range" id="deck-b-pitch" class="vdj-vertical-fader pitch-fader" min="-16" max="16" step="0.05" value="0">
+                                <span class="pitch-label-bottom" title="Frenar (-%)">- LENTO</span>
+                                <button class="btn-rst-pitch" id="btn-deck-b-pitch-reset" title="Restablecer velocidad a 0%">0% RST</button>
+                            </div>
+                        </div>
+
+                        <!-- Vinyl & Loop Controls Strip -->
+                        <div class="deck-loop-vinyl-bar">
+                            <button class="btn-vinyl active" id="btn-vinyl-b" onclick="toggleDeckVinyl('b')">💿 VINYL</button>
+                            <div class="loop-btn-cluster">
+                                <button class="btn-loop-ctrl" id="btn-loop-b-in" onclick="setDeckLoopIn('b')">IN</button>
+                                <button class="btn-loop-ctrl" id="btn-loop-b-out" onclick="setDeckLoopOut('b')">OUT</button>
+                                <button class="btn-loop-ctrl" onclick="halveDeckLoop('b')">1/2</button>
+                                <button class="btn-loop-ctrl" onclick="doubleDeckLoop('b')">2X</button>
+                                <button class="btn-loop-ctrl" onclick="setDeckLoop('b', 4)">4B</button>
+                                <button class="btn-loop-ctrl btn-loop-exit" id="btn-loop-b-exit" onclick="exitDeckLoop('b')">✕</button>
+                            </div>
+                        </div>
+
+                        <!-- Minimalist Pads (Hot Cues & Loops) -->
+                        <div class="vdj-pads-section">
+                            <div class="pads-mode-strip">
+                                <button class="pad-mode-btn active" id="btn-mode-b-hotcue" onclick="setDeckPadMode('b', 'hotcue')">HOT CUE</button>
+                                <button class="pad-mode-btn" id="btn-mode-b-stems" onclick="setDeckPadMode('b', 'stems')">STEMS</button>
+                                <button class="pad-mode-btn" id="btn-mode-b-fx" onclick="setDeckPadMode('b', 'fx')">FX</button>
+                                <button class="pad-mode-btn" id="btn-mode-b-sampler" onclick="setDeckPadMode('b', 'sampler')">SAMPLER</button>
+                            </div>
+                            <div class="pads-grid-4">
+                                <button class="vdj-pad pad-b" id="pad-b-1" onclick="handlePadClick('b', 1)">1</button>
+                                <button class="vdj-pad pad-b" id="pad-b-2" onclick="handlePadClick('b', 2)">2</button>
+                                <button class="vdj-pad pad-b" id="pad-b-3" onclick="handlePadClick('b', 3)">3</button>
+                                <button class="vdj-pad pad-b" id="pad-b-4" onclick="handlePadClick('b', 4)">4</button>
+                            </div>
+                        </div>
+
+                        <!-- Minimalist Transport Buttons (CUE, PLAY, SYNC) -->
+                        <div class="vdj-transport-row">
+                            <button class="vdj-btn-transport btn-cue-orange" id="btn-deck-b-cue">CUE</button>
+                            <button class="vdj-btn-transport btn-play-green" id="btn-deck-b-play">PLAY</button>
+                            <button class="vdj-btn-transport btn-sync-blue" id="btn-deck-b-sync">SYNC</button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- BOTTOM 2-PANE CRATE BROWSER (ÁRBOL DE CARPETAS + LISTA CON SCROLL INTERNO) -->
+                <div class="vdj-crate-dock">
+                    <!-- Left Sidebar: Folder Tree -->
+                    <div class="crate-tree-sidebar">
+                        <div class="tree-header">📂 NAVEGADOR</div>
+                        <div class="tree-list" id="tree-folder-list">
+                            <div class="tree-node active" data-filter="all" onclick="filterCrateByFolder('all')">
+                                <span class="tree-icon">📁</span>
+                                <span class="tree-label">Toda la Música</span>
+                            </div>
+                            <div class="tree-node" data-filter="afro" onclick="filterCrateByFolder('afro')">
+                                <span class="tree-icon">🌴</span>
+                                <span class="tree-label">Afro House & Deep</span>
+                            </div>
+                            <div class="tree-node" data-filter="latin" onclick="filterCrateByFolder('latin')">
+                                <span class="tree-icon">🔥</span>
+                                <span class="tree-label">Latin & Reparto</span>
+                            </div>
+                            <div class="tree-node" data-filter="dance" onclick="filterCrateByFolder('dance')">
+                                <span class="tree-icon">⚡</span>
+                                <span class="tree-label">EDM, Dance & Club</span>
+                            </div>
+                            <div class="tree-node" data-filter="pop" onclick="filterCrateByFolder('pop')">
+                                <span class="tree-icon">🇪🇸</span>
+                                <span class="tree-label">Pop & Indie Español</span>
+                            </div>
+                            <div class="tree-node" data-filter="mixxx" onclick="filterCrateByFolder('mixxx')">
+                                <span class="tree-icon">📂</span>
+                                <span class="tree-label">Carpeta Mixxx</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Track Table: Internal Vertical Scroll Only -->
+                    <div class="crate-content-pane">
+                        <div class="crate-toolbar">
+                            <span id="crate-category-title" class="crate-cat-title">📁 Toda la Música (<span id="crate-filtered-count">0</span> pistas)</span>
+                            <div class="crate-search-box">
+                                <input type="text" id="crate-search-input" placeholder="Filtrar por título o artista...">
+                            </div>
+                        </div>
+                        <div class="crate-dock-table-container">
+                            <table class="crate-table">
+                                <thead>
+                                    <tr>
+                                        <th>TÍTULO DE LA PISTA</th>
+                                        <th style="width:70px;">TAMAÑO</th>
+                                        <th style="width:55px;">TIPO</th>
+                                        <th style="width:130px; text-align:right;">CARGAR</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="crate-track-list">
+                                    <!-- Populated dynamically with internal scroll -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- ===================================================================
+                 TAB 1: YOUTUBE SEARCH & PREVIEW
+                 =================================================================== -->
+            <section id="tab-youtube" class="tab-pane">
+                <div class="search-hero">
+                    <form id="main-search-form" class="hero-search-form">
+                        <div class="hero-input-group">
+                            <input type="text" id="main-search-input" placeholder="Buscar canciones, remixes, artistas o pegar enlace de YouTube..." autocomplete="off" required>
+                            <button type="submit" class="btn btn-primary">Buscar</button>
+                        </div>
+                    </form>
+                    <div class="quick-tags">
+                        <span class="quick-tags-label">Tendencias:</span>
+                        <button class="tag-btn" data-query="Afro House Mix 2026">Afro House</button>
+                        <button class="tag-btn" data-query="Latin Tech House Remix">Latin Tech</button>
+                        <button class="tag-btn" data-query="David Guetta Remix">David Guetta</button>
+                    </div>
+                </div>
+
+                <div id="youtube-results-grid" class="youtube-grid">
+                    <div class="empty-state">
+                        <h4>Escribe arriba para buscar en YouTube</h4>
+                        <p class="text-muted">Preescucha en cascos antes de descargar.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ===================================================================
+                 TAB 2: LOCAL LIBRARY
+                 =================================================================== -->
+            <section id="tab-library" class="tab-pane">
+                <div class="pane-header">
+                    <input type="text" id="library-search-input" class="library-search-input" placeholder="Filtrar por nombre...">
+                </div>
+                <div class="track-list" id="track-list"></div>
+            </section>
+
+            <!-- ===================================================================
+                 TAB 3: DOWNLOAD QUEUE
+                 =================================================================== -->
+            <section id="tab-queue" class="tab-pane">
+                <div class="pane-header">
+                    <span id="queue-status-text" class="status-indicator">Inactivo</span>
+                </div>
+                <div class="queue-list" id="queue-list"></div>
+            </section>
+        </main>
+
+        <!-- ===================================================================
+             SETTINGS & AUDIO ROUTING MODAL (ENTRADAS Y SALIDAS)
+             =================================================================== -->
+        <div id="settings-modal" class="modal-overlay hidden">
+            <div class="settings-modal-dialog">
+                <div class="settings-modal-header">
+                    <div class="settings-title-group">
+                        <span class="settings-icon">⚙️</span>
+                        <div>
+                            <h3>Configuración de Entradas & Salidas de Audio</h3>
+                            <p>Enruta las salidas Master/Cascos y selecciona tus entradas de micrófono.</p>
+                        </div>
+                    </div>
+                    <button id="btn-close-settings" class="btn-modal-close" title="Cerrar">&times;</button>
+                </div>
+
+                <div class="settings-modal-body">
+                    <!-- SECTION 1: OUTPUTS -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <span class="sec-badge">SALIDAS</span>
+                            <h4>Enrutamiento de Salidas de Audio (Outputs)</h4>
+                        </div>
+
+                        <div class="settings-row">
+                            <div class="settings-field">
+                                <label>🔊 Salida MASTER (Altavoces Principales / Sala):</label>
+                                <select id="select-audio-master" class="vdj-select"></select>
+                                <span class="field-hint">Salida principal hacia los altavoces de sala.</span>
+                            </div>
+                            <button class="btn-test-tone" onclick="testAudioTone('master')">▶ Probar</button>
+                        </div>
+
+                        <div class="settings-row">
+                            <div class="settings-field">
+                                <label>🎧 Salida PREESCUCHA / AURICULARES (CUE / PFL):</label>
+                                <select id="select-audio-headphones" class="vdj-select"></select>
+                                <span class="field-hint">Salida privada para tus cascos USB UC03 o Hercules.</span>
+                            </div>
+                            <button class="btn-test-tone" onclick="testAudioTone('headphones')">▶ Probar</button>
+                        </div>
+                    </div>
+
+                    <!-- SECTION 2: INPUTS -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <span class="sec-badge input-badge">ENTRADAS</span>
+                            <h4>Entradas de Micrófono & Línea (Inputs)</h4>
+                        </div>
+
+                        <div class="settings-row">
+                            <div class="settings-field">
+                                <label>🎤 Entrada de Micrófono (DJ Talkover):</label>
+                                <select id="select-audio-mic" class="vdj-select"></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION 3: HARDWARE MIDI -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <span class="sec-badge midi-badge">CONTROLADORA</span>
+                            <h4>Controladora MIDI Hardware & Opciones</h4>
+                        </div>
+
+                        <div class="settings-grid-2">
+                            <div class="settings-field">
+                                <label>Curva del Crossfader:</label>
+                                <select id="select-crossfader-curve" class="vdj-select">
+                                    <option value="smooth" selected>Suave (Club DJ / House / EDM)</option>
+                                    <option value="linear">Lineal Estándar</option>
+                                    <option value="cut">Corte Rápido (Scratch / Hip-Hop)</option>
+                                </select>
+                            </div>
+                            <div class="settings-field">
+                                <label>Sensibilidad de los Jog Wheels:</label>
+                                <select id="select-jog-sensitivity" class="vdj-select">
+                                    <option value="normal" selected>Normal (1.0x)</option>
+                                    <option value="high">Alta / Rápida (1.5x)</option>
+                                    <option value="low">Precisa / Lenta (0.7x)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-modal-footer">
+                    <button id="btn-cancel-settings" class="btn-secondary">Cancelar</button>
+                    <button id="btn-save-settings" class="btn-primary">💾 Guardar Cambios</button>
+                </div>
+            </div>
+        </div>
+
+        <audio id="global-audio-element" preload="none"></audio>
+        <audio id="audio-deck-a" preload="auto"></audio>
+        <audio id="audio-deck-b" preload="auto"></audio>
+
+        <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <script src="/mixer.js"></script>
+    <script src="/app.js"></script>
+</body>
+</html>
