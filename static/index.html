@@ -91,9 +91,13 @@
                                 <span class="lcd-sub">BPM</span>
                                 <strong id="deck-a-bpm-digits">128.00</strong>
                             </div>
-                            <div class="lcd-time-box right">
-                                <span class="lcd-label">PITCH</span>
-                                <span id="deck-a-pitch-val" class="lcd-pitch-tag">0.0%</span>
+                            <div class="lcd-time-box right" style="display:flex; align-items:center; gap:0.25rem;">
+                                <div>
+                                    <span class="lcd-label">PITCH</span>
+                                    <span id="deck-a-pitch-val" class="lcd-pitch-tag">0.0%</span>
+                                </div>
+                                <button class="btn-lcd-file" onclick="document.getElementById('input-file-deck-a').click()" title="Cargar archivo local (MP3, WAV, FLAC, M4A, etc.)">📂</button>
+                                <input type="file" id="input-file-deck-a" accept="audio/*" style="display:none;" onchange="handleDeckFileInput('a', this)">
                             </div>
                         </div>
 
@@ -263,9 +267,13 @@
                                 <span class="lcd-sub">BPM</span>
                                 <strong id="deck-b-bpm-digits">128.00</strong>
                             </div>
-                            <div class="lcd-time-box right">
-                                <span class="lcd-label">PITCH</span>
-                                <span id="deck-b-pitch-val" class="lcd-pitch-tag">0.0%</span>
+                            <div class="lcd-time-box right" style="display:flex; align-items:center; gap:0.25rem;">
+                                <div>
+                                    <span class="lcd-label">PITCH</span>
+                                    <span id="deck-b-pitch-val" class="lcd-pitch-tag">0.0%</span>
+                                </div>
+                                <button class="btn-lcd-file" onclick="document.getElementById('input-file-deck-b').click()" title="Cargar archivo local (MP3, WAV, FLAC, M4A, etc.)">📂</button>
+                                <input type="file" id="input-file-deck-b" accept="audio/*" style="display:none;" onchange="handleDeckFileInput('b', this)">
                             </div>
                         </div>
 
@@ -455,18 +463,34 @@
                 </div>
 
                 <div class="settings-modal-body">
-                    <!-- SECTION 1: OUTPUTS -->
+                    <!-- SECTION 1: MUSIC LIBRARY DIRECTORY -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <span class="sec-badge" style="background:#00d2ff; color:#000;">CARPETA</span>
+                            <h4>Biblioteca de Música Local & Formatos Soportados</h4>
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-field" style="flex:1;">
+                                <label>📁 Directorio de Música (Cualquier Disco / Carpeta):</label>
+                                <input type="text" id="input-custom-music-dir" class="vdj-input" placeholder="Ej: D:\DJ_Tracks o /home/user/Music" style="width:100%; padding:0.4rem; background:#07090e; border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:4px;">
+                                <span class="field-hint">Soporta MP3, FLAC, WAV, M4A, AAC, OGG, OPUS, AIFF, WMA de forma recursiva.</span>
+                            </div>
+                            <button id="btn-apply-music-dir" class="btn-primary" style="height:36px; align-self:flex-end;">📂 Aplicar</button>
+                        </div>
+                    </div>
+
+                    <!-- SECTION 2: OUTPUTS -->
                     <div class="settings-card">
                         <div class="settings-card-header">
                             <span class="sec-badge">SALIDAS</span>
-                            <h4>Enrutamiento de Salidas de Audio (Outputs)</h4>
+                            <h4>Enrutamiento de Salidas de Audio Universal (Outputs)</h4>
                         </div>
 
                         <div class="settings-row">
                             <div class="settings-field">
-                                <label>🔊 Salida MASTER (Altavoces Principales / Sala):</label>
+                                <label>🔊 Salida MASTER (Altavoces Principales / Sala / Interfaz):</label>
                                 <select id="select-audio-master" class="vdj-select"></select>
-                                <span class="field-hint">Salida principal hacia los altavoces de sala.</span>
+                                <span class="field-hint">Salida principal hacia los altavoces de sala o canal 1-2.</span>
                             </div>
                             <button class="btn-test-tone" onclick="testAudioTone('master')">▶ Probar</button>
                         </div>
@@ -475,13 +499,13 @@
                             <div class="settings-field">
                                 <label>🎧 Salida PREESCUCHA / AURICULARES (CUE / PFL):</label>
                                 <select id="select-audio-headphones" class="vdj-select"></select>
-                                <span class="field-hint">Salida privada para tus cascos USB UC03 o Hercules.</span>
+                                <span class="field-hint">Salida para auriculares USB, Bluetooth o canal 3-4 de tu interfaz DJ.</span>
                             </div>
                             <button class="btn-test-tone" onclick="testAudioTone('headphones')">▶ Probar</button>
                         </div>
                     </div>
 
-                    <!-- SECTION 2: INPUTS -->
+                    <!-- SECTION 3: INPUTS -->
                     <div class="settings-card">
                         <div class="settings-card-header">
                             <span class="sec-badge input-badge">ENTRADAS</span>
@@ -490,17 +514,24 @@
 
                         <div class="settings-row">
                             <div class="settings-field">
-                                <label>🎤 Entrada de Micrófono (DJ Talkover):</label>
+                                <label>🎤 Entrada de Micrófono (DJ Live Talkover):</label>
                                 <select id="select-audio-mic" class="vdj-select"></select>
                             </div>
                         </div>
                     </div>
 
-                    <!-- SECTION 3: HARDWARE MIDI -->
+                    <!-- SECTION 4: HARDWARE MIDI -->
                     <div class="settings-card">
                         <div class="settings-card-header">
-                            <span class="sec-badge midi-badge">CONTROLADORA</span>
-                            <h4>Controladora MIDI Hardware & Opciones</h4>
+                            <span class="sec-badge midi-badge">CONTROLADORA MIDI</span>
+                            <h4>Controladoras MIDI Multimarca (Hercules, Pioneer, Traktor, Numark, etc.)</h4>
+                        </div>
+
+                        <div class="settings-row">
+                            <div class="settings-field">
+                                <label>🎛️ Dispositivo MIDI Conectado:</label>
+                                <select id="select-midi-device" class="vdj-select"></select>
+                            </div>
                         </div>
 
                         <div class="settings-grid-2">
@@ -519,6 +550,13 @@
                                     <option value="high">Alta / Rápida (1.5x)</option>
                                     <option value="low">Precisa / Lenta (0.7x)</option>
                                 </select>
+                            </div>
+                        </div>
+
+                        <div class="settings-row" style="margin-top:0.4rem;">
+                            <div class="settings-field" style="width:100%;">
+                                <label style="font-size:0.7rem; color:var(--text-dim);">📡 Monitor de Actividad MIDI en Vivo:</label>
+                                <div id="midi-live-monitor" style="font-family:var(--font-digital); font-size:0.75rem; background:#040609; padding:0.35rem 0.6rem; border-radius:4px; border:1px solid rgba(255,255,255,0.08); color:var(--cue-amber);">Esperando señal MIDI...</div>
                             </div>
                         </div>
                     </div>

@@ -964,14 +964,16 @@ function playDJSoundSample(sampleIdx) {
 }
 
 // -------------------------------------------------------------
-// Hercules DJControl Inpulse 200 MK2 MIDI Engine with Anti-Loop Guard
+// Universal Multi-Brand DJ MIDI Engine (Hercules, Pioneer, Traktor, Numark, Generic)
 // -------------------------------------------------------------
-class HerculesMidiController {
+class UniversalMidiController {
     constructor(mixer) {
         this.mixer = mixer;
         this.midiAccess = null;
         this.input = null;
         this.output = null;
+        this.allInputs = [];
+        this.allOutputs = [];
         this.connected = false;
         this.touchA = false;
         this.touchB = false;
@@ -980,6 +982,7 @@ class HerculesMidiController {
         this.beatmatchGuide = true;
         this.selectedCrateIndex = 0;
         this.assistantEnergy = 1;
+        this.selectedDeviceId = 'all';
 
         // Anti-Loop and Debounce Maps
         this.sentMessagesHistory = new Map();
@@ -996,7 +999,7 @@ class HerculesMidiController {
 
     async init() {
         if (!navigator.requestMIDIAccess) {
-            console.warn('Web MIDI API not supported in this browser.');
+            console.warn('Web MIDI API no soportada en este navegador.');
             return;
         }
 
@@ -1005,7 +1008,7 @@ class HerculesMidiController {
             this.midiAccess.addEventListener('statechange', (e) => this.onStateChange(e));
             this.scanDevices();
         } catch (err) {
-            console.warn('Standard Web MIDI init error:', err);
+            console.warn('Error inicializando Web MIDI:', err);
         }
     }
 
@@ -1016,52 +1019,37 @@ class HerculesMidiController {
 
     scanDevices() {
         if (!this.midiAccess) return;
-        let herculesInput = null;
-        let herculesOutput = null;
+        this.allInputs = [];
+        this.allOutputs = [];
 
-        // 1. Look for genuine Hercules / DJControl hardware devices first
         for (const input of this.midiAccess.inputs.values()) {
-            const name = (input.name || '').toLowerCase();
-            if ((name.includes('inpulse') || name.includes('hercules') || name.includes('djcontrol') || name.includes('guillemot')) && !this.isInvalidMidiDevice(name)) {
-                herculesInput = input;
-                break;
+            if (!this.isInvalidMidiDevice(input.name)) {
+                this.allInputs.push(input);
             }
         }
 
         for (const output of this.midiAccess.outputs.values()) {
-            const name = (output.name || '').toLowerCase();
-            if ((name.includes('inpulse') || name.includes('hercules') || name.includes('djcontrol') || name.includes('guillemot')) && !this.isInvalidMidiDevice(name)) {
-                herculesOutput = output;
-                break;
+            if (!this.isInvalidMidiDevice(output.name)) {
+                this.allOutputs.push(output);
             }
         }
 
-        // 2. If not found by specific name, find any non-loopback hardware device
-        if (!herculesInput) {
-            for (const input of this.midiAccess.inputs.values()) {
-                if (!this.isInvalidMidiDevice(input.name)) {
-                    herculesInput = input;
-                    break;
-                }
-            }
-        }
-        if (!herculesOutput) {
-            for (const output of this.midiAccess.outputs.values()) {
-                if (!this.isInvalidMidiDevice(output.name)) {
-                    herculesOutput = output;
-                    break;
-                }
-            }
-        }
+        this.populateMidiSelect();
 
-        if (herculesInput) {
-            this.input = herculesInput;
-            this.output = herculesOutput;
-            this.input.onmidimessage = (msg) => this.onMidiMessage(msg);
+        // Connect to devices
+        if (this.allInputs.length > 0) {
             this.connected = true;
-            this.updateMidiPill(this.input.name || 'Hercules Conectada');
+            this.input = this.allInputs[0];
+            this.output = this.allOutputs.length > 0 ? this.allOutputs[0] : null;
 
-            // Handshake & LED Init
+            // Bind listener to all valid hardware inputs
+            this.allInputs.forEach(inp => {
+                inp.onmidimessage = (msg) => this.onMidiMessage(msg, inp);
+            });
+
+            this.updateMidiPill(this.input.name || 'MIDI Universal');
+
+            // Send Handshake / Init to supported controllers
             this.sendMidi([0xB0, 0x7F, 0x7F]);
             this.sendMidi([0x91, 0x03, 0x7F]);
             this.sendMidi([0x92, 0x03, 0x7F]);
@@ -1069,8 +1057,33 @@ class HerculesMidiController {
             this.sendMidi([0x90, 0x08, 0x7F]);
             this.updateAllLEDs();
 
-            showToast(`🎛️ Conectada: ${this.input.name || 'Hercules Inpulse 200'}`, 'success');
+            showToast(`🎛️ Conectado: ${this.input.name || 'Controlador MIDI'}`, 'success');
+        } else {
+            this.updateMidiPill('Sin Hardware');
         }
+    }
+
+    populateMidiSelect() {
+        const sel = document.getElementById('select-midi-device');
+        if (!sel) return;
+
+        if (this.allInputs.length === 0) {
+            sel.innerHTML = '<option value="none">🚫 No se detectaron controladores MIDI</option>';
+            return;
+        }
+
+        sel.innerHTML = `
+            <option value="all">🎛️ Todos los controladores conectados (Modo Universal)</option>
+        ` + this.allInputs.map((dev, idx) => `
+            <option value="${escapeHtml(dev.id || idx)}">
+                🎛️ ${escapeHtml(dev.name || `Dispositivo MIDI ${idx+1}`)}
+            </option>
+        `).join('');
+
+        sel.onchange = () => {
+            this.selectedDeviceId = sel.value;
+            showToast(`Controlador MIDI activo: ${sel.options[sel.selectedIndex].text}`, 'info');
+        };
     }
 
     onStateChange(e) {
@@ -1092,7 +1105,12 @@ class HerculesMidiController {
 
     updateMidiPill(name) {
         const text = document.getElementById('midi-name-text');
-        if (text) text.textContent = name.replace(/Hercules /i, '');
+        if (text) text.textContent = name.replace(/Guillemot Corporation /i, '').replace(/Hercules /i, '');
+    }
+
+    updateMidiMonitor(text) {
+        const mon = document.getElementById('midi-live-monitor');
+        if (mon) mon.textContent = text;
     }
 
     updateAllLEDs() {
@@ -1152,8 +1170,12 @@ class HerculesMidiController {
         } catch (e) {}
     }
 
-    onMidiMessage(msg) {
+    onMidiMessage(msg, port) {
         try {
+            if (this.selectedDeviceId !== 'all' && port && port.id !== this.selectedDeviceId) {
+                return;
+            }
+
             const [status, data1, data2] = msg.data;
             const cmd = status >> 4;
             const channel = status & 0xF;
@@ -1173,10 +1195,12 @@ class HerculesMidiController {
             // 2. BUTTONS & PADS (Note On / Off)
             if (cmd === 9 || cmd === 8) {
                 const isDown = (cmd === 9 && data2 > 0);
+                this.updateMidiMonitor(`NOTE ${isDown ? 'ON' : 'OFF'} [Ch:${channel} Note:0x${data1.toString(16).toUpperCase()} Vel:${data2}]`);
 
-                // Jog Platter Touch (Note 0x08 on Channel 1 & 2)
-                if ((channel === 1 || channel === 2) && data1 === 0x08) {
-                    if (channel === 1) {
+                // Jog Platter Touch (Note 0x08, 0x36 on Channel 1 & 2)
+                if ((channel === 1 || channel === 2 || channel === 0) && (data1 === 0x08 || data1 === 0x36)) {
+                    const isDeckA = (channel === 1 || data1 === 0x08);
+                    if (isDeckA) {
                         this.touchA = isDown;
                         if (isDown) this.mixer.deckA.onHardwareTouchDown();
                         else this.mixer.deckA.onHardwareTouchUp();
@@ -1188,12 +1212,12 @@ class HerculesMidiController {
                     return;
                 }
 
-                // Shift buttons (Note 0x04 or 0x0B)
-                if (channel === 1 && (data1 === 0x04 || data1 === 0x0B)) {
+                // Shift buttons (Note 0x04 or 0x0B or 0x3F)
+                if ((channel === 1 || channel === 0) && (data1 === 0x04 || data1 === 0x0B || data1 === 0x3F)) {
                     this.shiftA = isDown;
                     return;
                 }
-                if (channel === 2 && (data1 === 0x04 || data1 === 0x0B)) {
+                if (channel === 2 && (data1 === 0x04 || data1 === 0x0B || data1 === 0x3F)) {
                     this.shiftB = isDown;
                     return;
                 }
@@ -1202,8 +1226,8 @@ class HerculesMidiController {
                 if (cmd === 8 || (cmd === 9 && data2 === 0)) {
                     const btnKey = `${channel}_${data1}`;
                     this.buttonStates.set(btnKey, false);
-                    if (channel === 1 && data1 === 0x06) this.mixer.deckA.cue(false, this.shiftA);
-                    if (channel === 2 && data1 === 0x06) this.mixer.deckB.cue(false, this.shiftB);
+                    if ((channel === 1 || channel === 0) && (data1 === 0x06 || data1 === 0x0C || data1 === 0x48)) this.mixer.deckA.cue(false, this.shiftA);
+                    if ((channel === 2 || channel === 1) && (data1 === 0x06 || data1 === 0x0C || data1 === 0x48)) this.mixer.deckB.cue(false, this.shiftB);
                     return;
                 }
 
@@ -1226,48 +1250,38 @@ class HerculesMidiController {
                 }
 
                 // ==================== HEADPHONE CUE (PFL) SHORTCUTS ====================
-                if (channel === 1 && (data1 === 0x0C || data1 === 0x0A || data1 === 0x0E)) {
+                if ((channel === 1 && (data1 === 0x0C || data1 === 0x0A || data1 === 0x0E || data1 === 0x54)) || (channel === 0 && (data1 === 0x0C || data1 === 0x0E || data1 === 0x18))) {
                     toggleDeckPFL('a');
                     return;
                 }
-                if (channel === 2 && (data1 === 0x0C || data1 === 0x0A || data1 === 0x0E)) {
+                if ((channel === 2 && (data1 === 0x0C || data1 === 0x0A || data1 === 0x0E || data1 === 0x54)) || (channel === 0 && (data1 === 0x0D || data1 === 0x0F || data1 === 0x19))) {
                     toggleDeckPFL('b');
                     return;
                 }
-                if (channel === 0) {
-                    if (data1 === 0x0C || data1 === 0x0E) {
-                        toggleDeckPFL('a');
-                        return;
-                    }
-                    if (data1 === 0x0D || data1 === 0x0F) {
-                        toggleDeckPFL('b');
-                        return;
-                    }
-                    if (data1 === 0x0B || data1 === 0x07) {
-                        toggleMasterPFL();
-                        return;
-                    }
+                if (channel === 0 && (data1 === 0x0B || data1 === 0x07)) {
+                    toggleMasterPFL();
+                    return;
                 }
 
                 // ==================== DECK A BUTTONS ====================
-                if (channel === 1) {
-                    if (data1 === 0x07) {
+                if (channel === 1 || (channel === 0 && data1 <= 0x0F)) {
+                    if (data1 === 0x07 || data1 === 0x0B || data1 === 0x47) {
                         this.mixer.deckA.togglePlay(this.shiftA);
                     }
-                    else if (data1 === 0x06) {
+                    else if (data1 === 0x06 || data1 === 0x0C || data1 === 0x48) {
                         this.mixer.deckA.cue(true, this.shiftA);
                     }
-                    else if (data1 === 0x05) {
+                    else if (data1 === 0x05 || data1 === 0x58) {
                         this.mixer.deckA.sync(this.shiftA);
                     }
-                    else if (data1 === 0x03) {
+                    else if (data1 === 0x03 || data1 === 0x1A) {
                         this.mixer.deckA.toggleVinyl();
                     }
-                    else if (data1 === 0x09) { // LOOP IN / 1/2
+                    else if (data1 === 0x09 || data1 === 0x40) { // LOOP IN / 1/2
                         if (this.shiftA) this.mixer.deckA.halveLoop();
                         else this.mixer.deckA.setLoopIn();
                     }
-                    else if (data1 === 0x0A) { // LOOP OUT / 2X / EXIT
+                    else if (data1 === 0x0A || data1 === 0x41) { // LOOP OUT / 2X / EXIT
                         if (this.shiftA) this.mixer.deckA.doubleLoop();
                         else if (this.mixer.deckA.loopActive) this.mixer.deckA.exitLoop();
                         else this.mixer.deckA.setLoopOut();
@@ -1283,24 +1297,24 @@ class HerculesMidiController {
                 }
 
                 // ==================== DECK B BUTTONS ====================
-                else if (channel === 2) {
-                    if (data1 === 0x07) {
+                else if (channel === 2 || (channel === 1 && data1 >= 0x40)) {
+                    if (data1 === 0x07 || data1 === 0x0B || data1 === 0x47) {
                         this.mixer.deckB.togglePlay(this.shiftB);
                     }
-                    else if (data1 === 0x06) {
+                    else if (data1 === 0x06 || data1 === 0x0C || data1 === 0x48) {
                         this.mixer.deckB.cue(true, this.shiftB);
                     }
-                    else if (data1 === 0x05) {
+                    else if (data1 === 0x05 || data1 === 0x58) {
                         this.mixer.deckB.sync(this.shiftB);
                     }
-                    else if (data1 === 0x03) {
+                    else if (data1 === 0x03 || data1 === 0x1A) {
                         this.mixer.deckB.toggleVinyl();
                     }
-                    else if (data1 === 0x09) { // LOOP IN / 1/2
+                    else if (data1 === 0x09 || data1 === 0x40) { // LOOP IN / 1/2
                         if (this.shiftB) this.mixer.deckB.halveLoop();
                         else this.mixer.deckB.setLoopIn();
                     }
-                    else if (data1 === 0x0A) { // LOOP OUT / 2X / EXIT
+                    else if (data1 === 0x0A || data1 === 0x41) { // LOOP OUT / 2X / EXIT
                         if (this.shiftB) this.mixer.deckB.doubleLoop();
                         else if (this.mixer.deckB.loopActive) this.mixer.deckB.exitLoop();
                         else this.mixer.deckB.setLoopOut();
@@ -1352,40 +1366,41 @@ class HerculesMidiController {
 
             // 3. FADERS & KNOBS (CC)
             else if (cmd === 11) {
+                this.updateMidiMonitor(`CC [Ch:${channel} CC:0x${data1.toString(16).toUpperCase()} Val:${data2}]`);
+
                 if (channel === 0) {
-                    if (data1 === 0x00) {
+                    if (data1 === 0x00 || data1 === 0x1F || data1 === 0x08) {
                         const pct = (data2 / 127.0) * 100;
                         const xfader = document.getElementById('mixer-crossfader');
                         if (xfader) {
                             xfader.value = pct;
                             xfader.dispatchEvent(new Event('input'));
                         }
-                    } else if (data1 === 0x01 || data1 === 0x03) {
+                    } else if (data1 === 0x01 || data1 === 0x03 || data1 === 0x40) {
                         const delta = data2 > 64 ? data2 - 128 : data2;
                         this.navigateCrate(delta);
-                    } else if (data1 === 0x06) {
+                    } else if (data1 === 0x06 || data1 === 0x10) {
                         const masterKnob = document.getElementById('master-volume');
                         if (masterKnob) {
                             masterKnob.value = (data2 / 127.0) * 1.5;
                             masterKnob.dispatchEvent(new Event('input'));
                         }
-                    } else if (data1 === 0x07) {
+                    } else if (data1 === 0x07 || data1 === 0x11) {
                         const val = (data2 / 127.0) * 1.5;
                         if (this.mixer.headphoneGain && window.djAudioCtx) {
                             this.mixer.headphoneGain.gain.setTargetAtTime(val, window.djAudioCtx.currentTime, 0.015);
                         }
-                        showToast(`🎧 Volumen Auriculares: ${Math.round((data2 / 127.0) * 100)}%`, 'info');
                     }
                 }
 
                 // Deck A CCs
                 else if (channel === 1) {
-                    if (data1 === 0x00) this.setSlider('deck-a-fader', data2 / 127.0);
-                    else if (data1 === 0x01) this.setSlider('deck-a-filter', ((data2 - 64) / 64.0) * 100);
-                    else if (data1 === 0x02) this.setSlider('deck-a-eq-low', ((data2 - 64) / 64.0) * 24);
-                    else if (data1 === 0x03) this.setSlider('deck-a-eq-mid', ((data2 - 64) / 64.0) * 24);
-                    else if (data1 === 0x04) this.setSlider('deck-a-eq-high', ((data2 - 64) / 64.0) * 24);
-                    else if (data1 === 0x05) this.setSlider('deck-a-gain', (data2 / 127.0) * 2.0);
+                    if (data1 === 0x00 || data1 === 0x13) this.setSlider('deck-a-fader', data2 / 127.0);
+                    else if (data1 === 0x01 || data1 === 0x17) this.setSlider('deck-a-filter', ((data2 - 64) / 64.0) * 100);
+                    else if (data1 === 0x02 || data1 === 0x09) this.setSlider('deck-a-eq-low', ((data2 - 64) / 64.0) * 24);
+                    else if (data1 === 0x03 || data1 === 0x08) this.setSlider('deck-a-eq-mid', ((data2 - 64) / 64.0) * 24);
+                    else if (data1 === 0x04 || data1 === 0x07) this.setSlider('deck-a-eq-high', ((data2 - 64) / 64.0) * 24);
+                    else if (data1 === 0x05 || data1 === 0x04) this.setSlider('deck-a-gain', (data2 / 127.0) * 2.0);
                     else if (data1 === 0x08) {
                         this.pitchState.a.msb = data2;
                         this.apply14BitPitch('a');
@@ -1393,7 +1408,7 @@ class HerculesMidiController {
                         this.pitchState.a.lsb = data2;
                         this.apply14BitPitch('a');
                     }
-                    else if (data1 === 0x0A || data1 === 0x09) {
+                    else if (data1 === 0x0A || data1 === 0x09 || data1 === 0x21 || data1 === 0x22) {
                         const delta = data2 > 64 ? data2 - 128 : data2;
                         this.mixer.deckA.applyHardwareJogDelta(delta, this.touchA, this.shiftA);
                     }
@@ -1401,12 +1416,12 @@ class HerculesMidiController {
 
                 // Deck B CCs
                 else if (channel === 2) {
-                    if (data1 === 0x00) this.setSlider('deck-b-fader', data2 / 127.0);
-                    else if (data1 === 0x01) this.setSlider('deck-b-filter', ((data2 - 64) / 64.0) * 100);
-                    else if (data1 === 0x02) this.setSlider('deck-b-eq-low', ((data2 - 64) / 64.0) * 24);
-                    else if (data1 === 0x03) this.setSlider('deck-b-eq-mid', ((data2 - 64) / 64.0) * 24);
-                    else if (data1 === 0x04) this.setSlider('deck-b-eq-high', ((data2 - 64) / 64.0) * 24);
-                    else if (data1 === 0x05) this.setSlider('deck-b-gain', (data2 / 127.0) * 2.0);
+                    if (data1 === 0x00 || data1 === 0x14) this.setSlider('deck-b-fader', data2 / 127.0);
+                    else if (data1 === 0x01 || data1 === 0x18) this.setSlider('deck-b-filter', ((data2 - 64) / 64.0) * 100);
+                    else if (data1 === 0x02 || data1 === 0x0D) this.setSlider('deck-b-eq-low', ((data2 - 64) / 64.0) * 24);
+                    else if (data1 === 0x03 || data1 === 0x0C) this.setSlider('deck-b-eq-mid', ((data2 - 64) / 64.0) * 24);
+                    else if (data1 === 0x04 || data1 === 0x0B) this.setSlider('deck-b-eq-high', ((data2 - 64) / 64.0) * 24);
+                    else if (data1 === 0x05 || data1 === 0x05) this.setSlider('deck-b-gain', (data2 / 127.0) * 2.0);
                     else if (data1 === 0x08) {
                         this.pitchState.b.msb = data2;
                         this.apply14BitPitch('b');
@@ -1414,16 +1429,17 @@ class HerculesMidiController {
                         this.pitchState.b.lsb = data2;
                         this.apply14BitPitch('b');
                     }
-                    else if (data1 === 0x0A || data1 === 0x09) {
+                    else if (data1 === 0x0A || data1 === 0x09 || data1 === 0x21 || data1 === 0x22) {
                         const delta = data2 > 64 ? data2 - 128 : data2;
                         this.mixer.deckB.applyHardwareJogDelta(delta, this.touchB, this.shiftB);
                     }
                 }
             }
         } catch (err) {
-            console.warn('MIDI event exception:', err);
+            console.warn('Excepción MIDI:', err);
         }
     }
+
 
     handlePadAction(deckId, padIndex, isShift) {
         const deck = deckId === 'a' ? this.mixer.deckA : this.mixer.deckB;
@@ -1602,8 +1618,8 @@ class DJMixer {
             this.setupMasterVolume();
             this.startWaveformVisualizers();
 
-            window.herculesMidi = new HerculesMidiController(this);
-            window.herculesMidi.init();
+            window.universalMidi = window.herculesMidi = new UniversalMidiController(this);
+            window.universalMidi.init();
 
             this.initialized = true;
         } catch (e) {

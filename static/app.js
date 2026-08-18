@@ -1,5 +1,5 @@
 // ==============================================================================
-// VIRTUAL DJ PRO - HIGH FIDELITY FRONTEND CONTROLLER & CRATE ENGINE
+// VIRTUAL DJ PRO - UNIVERSAL FRONTEND CONTROLLER, CRATE ENGINE & HARDWARE I/O
 // ==============================================================================
 
 function escapeHtml(str) {
@@ -35,6 +35,8 @@ const settingsModal = document.getElementById('settings-modal');
 const selectAudioMaster = document.getElementById('select-audio-master');
 const selectAudioHeadphones = document.getElementById('select-audio-headphones');
 const selectAudioMic = document.getElementById('select-audio-mic');
+const inputCustomMusicDir = document.getElementById('input-custom-music-dir');
+const btnApplyMusicDir = document.getElementById('btn-apply-music-dir');
 
 // Navigation Tabs
 const tabBtns = document.querySelectorAll('.tab-btn');
@@ -71,17 +73,55 @@ function showToast(message, type = 'info') {
 window.showToast = showToast;
 
 // -------------------------------------------------------------
-// Settings Modal & Audio Routing
+// Universal Audio Hardware Detection (Browser + Backend)
 // -------------------------------------------------------------
 async function loadAudioDevicesConfig() {
     try {
+        let outputs = [];
+        let inputs = [];
+
+        // 1. Browser Native MediaDevices Query (Chrome, Edge, Brave, Firefox)
+        if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+            try {
+                const devs = await navigator.mediaDevices.enumerateDevices();
+                devs.forEach((dev, idx) => {
+                    const label = dev.label || (dev.kind === 'audiooutput' ? `Salida de Audio ${idx+1}` : `Entrada Micrófono ${idx+1}`);
+                    const n_low = label.toLowerCase();
+                    if (dev.kind === 'audiooutput') {
+                        let icon = '🔊';
+                        if (n_low.includes('headphone') || n_low.includes('auricular') || n_low.includes('cue') || n_low.includes('jack')) icon = '🎧';
+                        else if (n_low.includes('dj') || n_low.includes('hercules') || n_low.includes('pioneer') || n_low.includes('inpulse') || n_low.includes('traktor')) icon = '🎛️';
+                        outputs.push({
+                            id: dev.deviceId,
+                            name: label,
+                            icon: icon,
+                            is_default: dev.deviceId === 'default'
+                        });
+                    } else if (dev.kind === 'audioinput') {
+                        inputs.push({
+                            id: dev.deviceId,
+                            name: label,
+                            icon: '🎤',
+                            is_default: dev.deviceId === 'default'
+                        });
+                    }
+                });
+            } catch (e) {}
+        }
+
+        // 2. Fetch server-side system soundcards (ALSA/PipeWire/WMI/CoreAudio)
         const res = await fetch('/api/audio-config');
-        if (!res.ok) return;
-        const data = await res.json();
+        if (res.ok) {
+            const data = await res.json();
+            if (outputs.length === 0 && data.outputs) outputs = data.outputs;
+            if (inputs.length === 0 && data.inputs) inputs = data.inputs;
+            if (inputCustomMusicDir && data.music_dir) {
+                inputCustomMusicDir.value = data.music_dir;
+            }
+        }
 
-        availableOutputs = data.outputs || [];
-        availableInputs = data.inputs || [];
-
+        availableOutputs = outputs;
+        availableInputs = inputs;
         populateDeviceSelects();
     } catch (err) {
         console.warn('Failed to load audio config:', err);
@@ -97,8 +137,8 @@ function populateDeviceSelects() {
         </option>
     `).join('');
 
-    selectAudioHeadphones.innerHTML = availableOutputs.map(dev => `
-        <option value="${escapeHtml(dev.id)}" ${dev.name.toLowerCase().includes('uc03') || dev.name.toLowerCase().includes('inpulse') ? 'selected' : ''}>
+    selectAudioHeadphones.innerHTML = availableOutputs.map((dev, idx) => `
+        <option value="${escapeHtml(dev.id)}" ${dev.name.toLowerCase().includes('headphone') || dev.name.toLowerCase().includes('auricular') || dev.name.toLowerCase().includes('inpulse') || idx === 1 ? 'selected' : ''}>
             ${dev.icon} ${escapeHtml(dev.name)}
         </option>
     `).join('');
@@ -110,6 +150,30 @@ function populateDeviceSelects() {
             ${dev.icon} ${escapeHtml(dev.name)}
         </option>
     `).join('');
+}
+
+if (btnApplyMusicDir && inputCustomMusicDir) {
+    btnApplyMusicDir.addEventListener('click', async () => {
+        const newDir = inputCustomMusicDir.value.trim();
+        if (!newDir) return;
+
+        try {
+            const res = await fetch('/api/set-music-dir', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ music_dir: newDir })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                showToast(`Directorio actualizado: ${data.music_dir}`, 'success');
+                fetchLibrary();
+            } else {
+                showToast(`Error: ${data.error}`, 'error');
+            }
+        } catch (e) {
+            showToast('Error al cambiar directorio', 'error');
+        }
+    });
 }
 
 if (btnOpenSettings) {
@@ -136,6 +200,13 @@ if (btnSaveSettings) {
         localStorage.setItem('dj_headphones_sink', headphonesSink);
         localStorage.setItem('dj_mic_source', micSource);
 
+        // Native setSinkId if supported by browser
+        if (audioElement.setSinkId && masterSink !== 'default') {
+            try {
+                await audioElement.setSinkId(masterSink);
+            } catch (e) {}
+        }
+
         try {
             const res = await fetch('/api/set-audio-route', {
                 method: 'POST',
@@ -148,13 +219,58 @@ if (btnSaveSettings) {
             });
             const data = await res.json();
             if (data.status === 'ok') {
-                showToast(`Salida de Audio: ${data.device_name || masterSink}`, 'success');
+                showToast(`Salida de Audio configurada`, 'success');
             }
-        } catch (err) {
-            console.warn('Error setting audio route:', err);
-        }
+        } catch (err) {}
 
         closeSettings();
+    });
+}
+
+// -------------------------------------------------------------
+// Universal Local File & Drag & Drop Handling
+// -------------------------------------------------------------
+window.handleDeckFileInput = function(deckId, inputEl) {
+    if (inputEl.files && inputEl.files.length > 0) {
+        const file = inputEl.files[0];
+        window.loadLocalAudioFileToDeck(deckId, file);
+    }
+};
+
+window.loadLocalAudioFileToDeck = function(deckId, file) {
+    if (!file) return;
+    const blobUrl = URL.createObjectURL(file);
+    const fileName = file.name;
+    if (!window.djMixer.initialized) window.djMixer.init();
+    const deck = deckId === 'a' ? window.djMixer.deckA : window.djMixer.deckB;
+    if (deck) {
+        deck.loadTrack(fileName, blobUrl);
+        showToast(`📂 Archivo local cargado en Deck ${deckId.toUpperCase()}: ${fileName}`, 'success');
+    }
+};
+
+function setupUniversalDragAndDrop() {
+    ['a', 'b'].forEach(deckId => {
+        const deckCard = document.querySelector(`.deck-card-${deckId}`);
+        if (!deckCard) return;
+
+        deckCard.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            deckCard.style.outline = '2px dashed var(--deck-a-color)';
+        });
+
+        deckCard.addEventListener('dragleave', () => {
+            deckCard.style.outline = '';
+        });
+
+        deckCard.addEventListener('drop', (e) => {
+            e.preventDefault();
+            deckCard.style.outline = '';
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                const file = e.dataTransfer.files[0];
+                window.loadLocalAudioFileToDeck(deckId, file);
+            }
+        });
     });
 }
 
@@ -174,9 +290,7 @@ window.testAudioTone = function(type) {
         osc.start();
         osc.stop(ctx.currentTime + 0.5);
         showToast(`Tono de prueba ${type.toUpperCase()} enviado`, 'info');
-    } catch (e) {
-        console.warn(e);
-    }
+    } catch (e) {}
 };
 
 // -------------------------------------------------------------
@@ -340,9 +454,7 @@ async function sendDownloadRequest(payload) {
             body: JSON.stringify(payload)
         });
         fetchQueue();
-    } catch (err) {
-        console.warn(err);
-    }
+    } catch (err) {}
 }
 
 document.querySelectorAll('.tag-btn').forEach(btn => {
@@ -356,7 +468,7 @@ document.querySelectorAll('.tag-btn').forEach(btn => {
 });
 
 // -------------------------------------------------------------
-// Folder Tree & Crate Table Filtering (Zero-Scroll Edition)
+// Folder Tree & Crate Table Filtering (All Audio Formats)
 // -------------------------------------------------------------
 window.filterCrateByFolder = function(folderKey) {
     currentFolderFilter = folderKey;
@@ -433,8 +545,8 @@ function renderCrateTable() {
             <td>${track.size_mb}M</td>
             <td><span style="color:var(--deck-a-color); font-weight:700;">${escapeHtml(track.ext)}</span></td>
             <td style="text-align:right;">
-                <button class="btn-load-inline load-a" onclick="loadTrackToDeck('a', '${encodeURIComponent(track.name)}', '${encodeURIComponent(track.stem)}')">👈 A</button>
-                <button class="btn-load-inline load-b" onclick="loadTrackToDeck('b', '${encodeURIComponent(track.name)}', '${encodeURIComponent(track.stem)}')">B 👉</button>
+                <button class="btn-load-inline load-a" onclick="loadTrackToDeck('a', '${encodeURIComponent(track.rel_path || track.name)}', '${encodeURIComponent(track.stem)}')">👈 A</button>
+                <button class="btn-load-inline load-b" onclick="loadTrackToDeck('b', '${encodeURIComponent(track.rel_path || track.name)}', '${encodeURIComponent(track.stem)}')">B 👉</button>
             </td>
         </tr>
     `).join('');
@@ -461,8 +573,8 @@ function renderTrackList() {
                 <span class="text-dim" style="font-size:0.7rem;">${escapeHtml(track.ext)} • ${track.size_mb} MB</span>
             </div>
             <div class="track-actions">
-                <button class="btn-load-inline load-a" onclick="loadTrackToDeck('a', '${encodeURIComponent(track.name)}', '${encodeURIComponent(track.stem)}')">👈 DECK A</button>
-                <button class="btn-load-inline load-b" onclick="loadTrackToDeck('b', '${encodeURIComponent(track.name)}', '${encodeURIComponent(track.stem)}')">DECK B 👉</button>
+                <button class="btn-load-inline load-a" onclick="loadTrackToDeck('a', '${encodeURIComponent(track.rel_path || track.name)}', '${encodeURIComponent(track.stem)}')">👈 DECK A</button>
+                <button class="btn-load-inline load-b" onclick="loadTrackToDeck('b', '${encodeURIComponent(track.rel_path || track.name)}', '${encodeURIComponent(track.stem)}')">DECK B 👉</button>
             </div>
         </div>
     `).join('');
@@ -540,6 +652,7 @@ if (btnOpenFolder) {
 document.addEventListener('DOMContentLoaded', () => {
     fetchLibrary();
     fetchQueue();
+    setupUniversalDragAndDrop();
     setInterval(fetchQueue, 2000);
     setInterval(fetchLibrary, 5000);
 });

@@ -318,6 +318,22 @@ html, body.vdj-theme {
 .lcd-b .lcd-digits { color: var(--deck-b-color); }
 .lcd-meta-box strong { font-family: var(--font-digital); font-size: 0.72rem; color: var(--cue-amber); }
 .lcd-pitch-tag { font-family: var(--font-digital); font-size: 0.68rem; color: var(--cue-amber); font-weight: 700; }
+.btn-lcd-file {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    padding: 1px 4px;
+    cursor: pointer;
+    line-height: 1;
+    transition: all 0.15s ease;
+}
+.btn-lcd-file:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: #fff;
+    transform: scale(1.05);
+}
 
 /* Jog Platter & Pitch Row (85px) */
 .vdj-deck-platter-row {
