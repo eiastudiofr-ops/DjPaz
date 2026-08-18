@@ -250,6 +250,34 @@ def get_universal_system_audio_devices():
     return sinks, sources
 
 
+def ensure_optimal_dj_audio_sink():
+    """Ensure that if a 4.0 surround DJ controller (Inpulse 200, DDJ, Traktor) is connected, it is set as default so the headphone jack works."""
+    if shutil.which("wpctl"):
+        try:
+            res = subprocess.run(["wpctl", "status"], capture_output=True, text=True, timeout=2, encoding="utf-8", errors="replace")
+            lines = res.stdout.splitlines()
+            in_sinks = False
+            for line in lines:
+                if "Sinks:" in line:
+                    in_sinks = True
+                    continue
+                elif "Sink endpoints:" in line or "Sources:" in line or "Streams:" in line:
+                    in_sinks = False
+                    continue
+                if in_sinks:
+                    line_str = line.strip().replace("│", "").strip()
+                    m = re.search(r"(\*?)\s*(\d+)\.\s+(.+?)\s+\[", line_str)
+                    if m:
+                        node_id = m.group(2)
+                        name = m.group(3).strip().lower()
+                        if ("inpulse" in name or "hercules" in name or "djcontrol" in name or "4.0" in name or "surround" in name) and not m.group(1):
+                            print(f"[*] Auto-activando Salida 4.0 DJ ({node_id}: {m.group(3)}) para habilitar salida Jack...")
+                            subprocess.run(["wpctl", "set-default", node_id], capture_output=True, timeout=2)
+                            break
+        except Exception:
+            pass
+
+
 def set_system_sink_by_device_id(device_id):
     """Set system audio sink via wpctl when PipeWire is present."""
     global current_selected_sink
@@ -696,6 +724,9 @@ def main():
     print(f"[*] Deno JS Runtime:    {DENO_PATH}")
     print(f"[*] Formatos Soportados: MP3, FLAC, WAV, M4A, OGG, AAC, OPUS, AIFF, WMA")
     print("=" * 65)
+
+    # Ensure 4.0 Surround DJ Controller sink is active for Front Headphone Jack
+    ensure_optimal_dj_audio_sink()
 
     # Start background worker thread
     worker_thread = threading.Thread(target=background_worker, daemon=True)

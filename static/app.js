@@ -131,14 +131,23 @@ async function loadAudioDevicesConfig() {
 function populateDeviceSelects() {
     if (!selectAudioMaster || !selectAudioHeadphones || !selectAudioMic) return;
 
-    selectAudioMaster.innerHTML = availableOutputs.map(dev => `
-        <option value="${escapeHtml(dev.id)}">
-            ${dev.icon} ${escapeHtml(dev.name)} ${dev.is_default ? '(Predeterminado)' : ''}
-        </option>
-    `).join('');
+    // Detect if we have an Inpulse 200 / Hercules / DJ Soundcard
+    const hasDjCard = availableOutputs.some(dev => dev.name.toLowerCase().includes('inpulse') || dev.name.toLowerCase().includes('hercules') || dev.name.toLowerCase().includes('4.0'));
 
-    selectAudioHeadphones.innerHTML = availableOutputs.map((dev, idx) => `
-        <option value="${escapeHtml(dev.id)}" ${dev.name.toLowerCase().includes('headphone') || dev.name.toLowerCase().includes('auricular') || dev.name.toLowerCase().includes('inpulse') || idx === 1 ? 'selected' : ''}>
+    selectAudioMaster.innerHTML = availableOutputs.map(dev => {
+        const isDjCard = dev.name.toLowerCase().includes('inpulse') || dev.name.toLowerCase().includes('hercules') || dev.name.toLowerCase().includes('4.0');
+        const isSelected = hasDjCard ? isDjCard : dev.is_default;
+        return `
+            <option value="${escapeHtml(dev.id)}" ${isSelected ? 'selected' : ''}>
+                ${dev.icon} ${escapeHtml(dev.name)} ${dev.is_default ? '(Predeterminado)' : ''}
+            </option>
+        `;
+    }).join('');
+
+    selectAudioHeadphones.innerHTML = `
+        <option value="hardware_cue" selected>🎛️ Salida Jack Integrada Controladora (Canales 3-4)</option>
+    ` + availableOutputs.map(dev => `
+        <option value="${escapeHtml(dev.id)}">
             ${dev.icon} ${escapeHtml(dev.name)}
         </option>
     `).join('');
@@ -193,35 +202,30 @@ if (btnCancelSettings) btnCancelSettings.addEventListener('click', closeSettings
 if (btnSaveSettings) {
     btnSaveSettings.addEventListener('click', async () => {
         const masterSink = selectAudioMaster?.value || 'default';
-        const headphonesSink = selectAudioHeadphones?.value || 'default';
+        const headphonesSink = selectAudioHeadphones?.value || 'hardware_cue';
         const micSource = selectAudioMic?.value;
 
         localStorage.setItem('dj_master_sink', masterSink);
         localStorage.setItem('dj_headphones_sink', headphonesSink);
         localStorage.setItem('dj_mic_source', micSource);
 
-        // Native setSinkId if supported by browser
-        if (audioElement.setSinkId && masterSink !== 'default') {
+        if (masterSink && masterSink !== 'default' && masterSink !== 'hardware_cue') {
             try {
-                await audioElement.setSinkId(masterSink);
-            } catch (e) {}
+                const res = await fetch('/api/set-audio-route', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        master_id: masterSink,
+                        device_id: masterSink,
+                        headphones_id: headphonesSink
+                    })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    showToast(`Salida de Audio configurada: ${data.device_id || masterSink}`, 'success');
+                }
+            } catch (err) {}
         }
-
-        try {
-            const res = await fetch('/api/set-audio-route', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    master_id: masterSink,
-                    device_id: masterSink,
-                    headphones_id: headphonesSink
-                })
-            });
-            const data = await res.json();
-            if (data.status === 'ok') {
-                showToast(`Salida de Audio configurada`, 'success');
-            }
-        } catch (err) {}
 
         closeSettings();
     });
