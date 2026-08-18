@@ -150,13 +150,33 @@ Windows: Python + FFmpeg en PATH + `pip install -r requirements.txt`. PipeWire n
 
 ---
 
-## 7. Datos que siguen haciendo falta del autor original
+## 7. Respuestas Técnicas a las Dudas del Entorno
 
-Si se quiere un 4.0 discreto idéntico a Ubuntu:
+1. **¿La Hercules se ve en Windows como 4 canales o estéreo?**
+   - En Windows, con el driver ASIO oficial de Hercules se expone como dispositivo multicanal (4 canales: 1-2 Master, 3-4 Auriculares).
+   - En navegadores sobre WASAPI estándar, si el navegador reporta `maxChannelCount = 2`, el motor activa el fallback estéreo con mezcla CUE para que nunca quede mudo.
+2. **¿Sigue existiendo el dongle UC03 o ahora todo va por la Inpulse?**
+   - El dongle USB UC03 era el dispositivo de prueba inicial. Ahora la aplicación usa detección dinámica de audio y soporta tanto la Hercules Inpulse directa (4 canales) como cualquier tarjeta estéreo estándar en Windows/Linux/Mac.
+3. **Carpeta de música en cada máquina:**
+   - Ahora se detecta automáticamente (`~/Music`, `~/Música`, `%USERPROFILE%\Music` o variable `DJPAZ_MUSIC_DIR` o `--music-dir`).
+4. **¿Deno es obligatorio?**
+   - No. `yt-dlp` funciona directamente desde Python. Si Deno está instalado en el sistema, se detecta automáticamente; si no, yt-dlp opera con sus extractores estándar.
 
-- ¿La Hercules se ve en Windows como dispositivo de **4 canales** WASAPI o solo estéreo?
-- ¿Sigue existiendo el dongle **UC03** o ahora Master/CUE van solo por la Inpulse?
-- Carpeta de música real en cada máquina (no `/home/orouhost/Música`).
-- Si Deno es obligatorio para YouTube en 2026 o basta yt-dlp del pip.
+---
 
-Sin eso se puede dejar la app usable en estéreo (Master por altavoces, CUE por el mismo dispositivo o mix en cascos).
+## 8. Estado de Resolución de Auditoría (Aplicado en el Repositorio)
+
+| Problema Auditado | Estado | Solución Aplicada |
+| :--- | :--- | :--- |
+| `argparse` ausente | **RESUELTO** | Implementado en `server.py` con `--port`, `--host`, `--music-dir`. |
+| Rutas `/home/orouhost` hardcodeadas | **RESUELTO** | Resuelto con `get_default_music_dir()`, `get_deno_path()` y `DJPAZ_MUSIC_DIR`. |
+| Lanzadores de Windows | **RESUELTO** | Creados `start.bat` y `start.ps1` ejecutables con soporte para argumentos. |
+| CUE mudo en 2 canales (Windows/Stereo) | **RESUELTO** | `static/mixer.js` conecta `headphoneGain` a `destination` en modo 2 canales. |
+| STEM Melody sin filtro DSP | **RESUELTO** | Creado `this.melodyFilter` (Peaking 850Hz Q=0.9) conectado en la cadena y manejado en `toggleStem`. |
+| Scratch jog delta wrap (`-Math.PI`) | **RESUELTO** | Corregido a `delta += 2 * Math.PI`. |
+| Vulnerabilidad XSS en YouTube search | **RESUELTO** | Implementada función `escapeHtml()` en todos los renders de tarjetas y tablas. |
+| Path Traversal en `/api/audio` | **RESUELTO** | Implementada validación estricta con `is_safe_path()` y `Path.is_relative_to()`. |
+| Pérdida de contador `#crate-filtered-count`| **RESUELTO** | Modificado `filterCrateByFolder` para preservar el badge contador. |
+| Sampler conectado a `destination` directo | **RESUELTO** | Enrutado a través de `window.djMixer.masterGain` con limitador de estudio. |
+| Archivo `LICENSE` faltante | **RESUELTO** | Creado archivo oficial `LICENSE` (Licencia MIT). |
+| Explorador no recursivo | **RESUELTO** | `/api/library` ahora escanea recursivamente con `rglob("*")` e incluye carpetas. |

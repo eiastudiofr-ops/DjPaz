@@ -68,6 +68,7 @@ class DJDeck {
 
         // Stems DSP Nodes
         this.vocalFilter = null;
+        this.melodyFilter = null;
         this.bassFilter = null;
         this.drumFilter = null;
 
@@ -127,9 +128,15 @@ class DJDeck {
         this.bassFilter.frequency.value = 160;
         this.bassFilter.gain.value = 0;
 
+        this.melodyFilter = audioCtx.createBiquadFilter();
+        this.melodyFilter.type = 'peaking';
+        this.melodyFilter.frequency.value = 850;
+        this.melodyFilter.Q.value = 0.9;
+        this.melodyFilter.gain.value = 0;
+
         this.vocalFilter = audioCtx.createBiquadFilter();
         this.vocalFilter.type = 'peaking';
-        this.vocalFilter.frequency.value = 1400;
+        this.vocalFilter.frequency.value = 1800;
         this.vocalFilter.Q.value = 1.2;
         this.vocalFilter.gain.value = 0;
 
@@ -169,14 +176,15 @@ class DJDeck {
         this.analyser.fftSize = 256;
 
         // Audio Chain Routing:
-        // Source -> Low -> Mid -> High -> Filter -> Stems (Bass->Vocal->Drum) -> Gain
+        // Source -> Low -> Mid -> High -> Filter -> Stems (Bass->Melody->Vocal->Drum) -> Gain
         if (this.source) {
             this.source.connect(this.lowNode);
             this.lowNode.connect(this.midNode);
             this.midNode.connect(this.highNode);
             this.highNode.connect(this.filterNode);
             this.filterNode.connect(this.bassFilter);
-            this.bassFilter.connect(this.vocalFilter);
+            this.bassFilter.connect(this.melodyFilter);
+            this.melodyFilter.connect(this.vocalFilter);
             this.vocalFilter.connect(this.drumFilter);
             this.drumFilter.connect(this.gainNode);
 
@@ -235,7 +243,16 @@ class DJDeck {
 
         // Screen Transport
         if (this.playBtn) this.playBtn.addEventListener('click', () => this.togglePlay());
-        if (this.cueBtn) this.cueBtn.addEventListener('click', () => this.cue());
+        
+        // Screen CUE (Hold for preview, release to stop)
+        if (this.cueBtn) {
+            this.cueBtn.addEventListener('mousedown', () => this.cue(true));
+            this.cueBtn.addEventListener('mouseup', () => this.cue(false));
+            this.cueBtn.addEventListener('mouseleave', () => this.cue(false));
+            this.cueBtn.addEventListener('touchstart', (e) => { e.preventDefault(); this.cue(true); });
+            this.cueBtn.addEventListener('touchend', (e) => { e.preventDefault(); this.cue(false); });
+        }
+
         if (this.syncBtn) this.syncBtn.addEventListener('click', () => this.sync());
 
         // Knobs with Smooth Audio Scheduling
@@ -304,6 +321,9 @@ class DJDeck {
 
         if (this.vocalFilter) {
             this.vocalFilter.gain.setTargetAtTime(this.stems.vocals ? 0 : -26, now, 0.02);
+        }
+        if (this.melodyFilter) {
+            this.melodyFilter.gain.setTargetAtTime(this.stems.melody ? 0 : -24, now, 0.02);
         }
         if (this.bassFilter) {
             this.bassFilter.gain.setTargetAtTime(this.stems.bass ? 0 : -28, now, 0.02);
@@ -750,7 +770,7 @@ class DJDeck {
         let delta = currentAngle - this.lastScratchAngle;
 
         if (delta > Math.PI) delta -= 2 * Math.PI;
-        if (delta < -Math.PI) delta -= 2 * Math.PI;
+        if (delta < -Math.PI) delta += 2 * Math.PI;
 
         this.rotation += delta * (180 / Math.PI);
         if (this.jog) this.jog.style.transform = `rotate(${this.rotation}deg)`;
@@ -840,6 +860,7 @@ function playDJSoundSample(sampleIdx) {
     if (ctx.state === 'suspended') ctx.resume();
 
     const now = ctx.currentTime;
+    const targetGain = (window.djMixer && window.djMixer.masterGain) ? window.djMixer.masterGain : ctx.destination;
 
     if (sampleIdx === 1) { // 🎺 AIRHORN
         const freqs = [466.16, 587.33, 700.0];
@@ -854,7 +875,7 @@ function playDJSoundSample(sampleIdx) {
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
 
             osc.connect(gain);
-            gain.connect(ctx.destination);
+            gain.connect(targetGain);
             osc.start(now);
             osc.stop(now + 0.45);
         });
@@ -871,7 +892,7 @@ function playDJSoundSample(sampleIdx) {
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
 
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(targetGain);
         osc.start(now);
         osc.stop(now + 0.22);
         showToast('💿 SAMPLER: Scratch Drop', 'info');
@@ -886,7 +907,7 @@ function playDJSoundSample(sampleIdx) {
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
 
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(targetGain);
         osc.start(now);
         osc.stop(now + 0.3);
         showToast('⚡ SAMPLER: Laser Impact', 'info');
@@ -901,7 +922,7 @@ function playDJSoundSample(sampleIdx) {
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
 
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(targetGain);
         osc.start(now);
         osc.stop(now + 0.65);
         showToast('💣 SAMPLER: 808 Sub Drop', 'info');
@@ -954,7 +975,7 @@ class HerculesMidiController {
 
         for (const input of this.midiAccess.inputs.values()) {
             const name = (input.name || '').toLowerCase();
-            if (name.includes('inpulse') || name.includes('hercules') || name.includes('djcontrol') || name.includes('dj')) {
+            if (name.includes('inpulse') || name.includes('hercules') || name.includes('djcontrol')) {
                 herculesInput = input;
                 break;
             }
@@ -962,7 +983,7 @@ class HerculesMidiController {
 
         for (const output of this.midiAccess.outputs.values()) {
             const name = (output.name || '').toLowerCase();
-            if (name.includes('inpulse') || name.includes('hercules') || name.includes('djcontrol') || name.includes('dj')) {
+            if (name.includes('inpulse') || name.includes('hercules') || name.includes('djcontrol')) {
                 herculesOutput = output;
                 break;
             }
@@ -1521,13 +1542,15 @@ class DJMixer {
             this.channelMerger.connect(dest);
             console.log('[*] 4-Channel Discrete DJ Output Enabled: Master (0,1) & Headphones (2,3)');
         } else {
-            // STEREO DESTINATION (Master ONLY - CUE stays separate and never bleeds into speakers)
+            // 2-CHANNEL / STEREO FALLBACK (Windows / Standard stereo soundcards)
             dest.channelCount = 2;
             dest.channelCountMode = 'max';
             dest.channelInterpretation = 'speakers';
 
             this.masterLimiter.connect(dest);
-            console.log('[*] 2-Channel Master Output Active.');
+            // Connect Headphone CUE to destination so pre-listening works in stereo headset setups
+            this.headphoneGain.connect(dest);
+            console.log('[*] 2-Channel Stereo Output Active (Master + Headphone CUE mix).');
         }
     }
 

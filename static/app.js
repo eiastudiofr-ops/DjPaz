@@ -1,55 +1,62 @@
-// Virtual DJ Pro Studio - Main Client Engine (1280x800 Zero-Scroll Edition with Folder Tree)
+// ==============================================================================
+// VIRTUAL DJ PRO - HIGH FIDELITY FRONTEND CONTROLLER & CRATE ENGINE
+// ==============================================================================
 
-let youtubeResults = [];
-let libraryTracks = [];
-let currentPlayingId = null;
-let currentPlayingType = null;
-let queuePollingInterval = null;
-let currentFolderFilter = 'all';
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
 
-let availableOutputs = [];
-let availableInputs = [];
-
-// DOM Elements
+// DOM Elements Cache
 const mainSearchForm = document.getElementById('main-search-form');
 const mainSearchInput = document.getElementById('main-search-input');
 const youtubeResultsGrid = document.getElementById('youtube-results-grid');
-
-const tabBtns = document.querySelectorAll('.tab-btn');
-const tabPanes = document.querySelectorAll('.tab-pane');
-
 const trackList = document.getElementById('track-list');
 const crateTrackList = document.getElementById('crate-track-list');
-const crateSearchInput = document.getElementById('crate-search-input');
-const crateCategoryTitle = document.getElementById('crate-category-title');
-const crateFilteredCount = document.getElementById('crate-filtered-count');
 const libraryCount = document.getElementById('library-count');
+const crateFilteredCount = document.getElementById('crate-filtered-count');
+const crateCategoryTitle = document.getElementById('crate-category-title');
+const queueList = document.getElementById('queue-list');
+const queueBadge = document.getElementById('queue-badge');
+const crateSearchInput = document.getElementById('crate-search-input');
 const librarySearchInput = document.getElementById('library-search-input');
 
-const queueList = document.getElementById('queue-list');
-const queueCount = document.getElementById('queue-count');
-const queueStatusText = document.getElementById('queue-status-text');
-
-const btnToggleFullscreen = document.getElementById('btn-toggle-fullscreen');
-const fsTextLabel = document.getElementById('fs-text-label');
-
+// Audio routing & settings modal elements
 const btnOpenSettings = document.getElementById('btn-open-settings');
 const btnCloseSettings = document.getElementById('btn-close-settings');
 const btnCancelSettings = document.getElementById('btn-cancel-settings');
 const btnSaveSettings = document.getElementById('btn-save-settings');
 const settingsModal = document.getElementById('settings-modal');
-
 const selectAudioMaster = document.getElementById('select-audio-master');
 const selectAudioHeadphones = document.getElementById('select-audio-headphones');
 const selectAudioMic = document.getElementById('select-audio-mic');
-const selectCrossfaderCurve = document.getElementById('select-crossfader-curve');
-const selectJogSensitivity = document.getElementById('select-jog-sensitivity');
 
-const audioElement = document.getElementById('global-audio-element');
+// Navigation Tabs
+const tabBtns = document.querySelectorAll('.tab-btn');
+const tabPanes = document.querySelectorAll('.tab-pane');
+
+// State
+let youtubeResults = [];
+let libraryTracks = [];
+let availableOutputs = [];
+let availableInputs = [];
+let currentPlayingId = null;
+let currentPlayingType = null;
+let currentFolderFilter = 'all';
+
+// Audio preview element
+const audioElement = new Audio();
+audioElement.volume = 1.0;
 
 // Toast notifications
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
+    if (!container) return;
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.textContent = message;
@@ -61,6 +68,7 @@ function showToast(message, type = 'info') {
         setTimeout(() => toast.remove(), 250);
     }, 2800);
 }
+window.showToast = showToast;
 
 // -------------------------------------------------------------
 // Settings Modal & Audio Routing
@@ -84,22 +92,22 @@ function populateDeviceSelects() {
     if (!selectAudioMaster || !selectAudioHeadphones || !selectAudioMic) return;
 
     selectAudioMaster.innerHTML = availableOutputs.map(dev => `
-        <option value="${dev.id}">
-            ${dev.icon} ${dev.name} ${dev.is_default ? '(Predeterminado)' : ''}
+        <option value="${escapeHtml(dev.id)}">
+            ${dev.icon} ${escapeHtml(dev.name)} ${dev.is_default ? '(Predeterminado)' : ''}
         </option>
     `).join('');
 
     selectAudioHeadphones.innerHTML = availableOutputs.map(dev => `
-        <option value="${dev.id}" ${dev.name.toLowerCase().includes('uc03') ? 'selected' : ''}>
-            ${dev.icon} ${dev.name}
+        <option value="${escapeHtml(dev.id)}" ${dev.name.toLowerCase().includes('uc03') || dev.name.toLowerCase().includes('inpulse') ? 'selected' : ''}>
+            ${dev.icon} ${escapeHtml(dev.name)}
         </option>
     `).join('');
 
     selectAudioMic.innerHTML = `
         <option value="none">🚫 Ninguno / Desactivado</option>
     ` + availableInputs.map(dev => `
-        <option value="${dev.id}" ${dev.is_default ? 'selected' : ''}>
-            ${dev.icon} ${dev.name}
+        <option value="${escapeHtml(dev.id)}" ${dev.is_default ? 'selected' : ''}>
+            ${dev.icon} ${escapeHtml(dev.name)}
         </option>
     `).join('');
 }
@@ -120,8 +128,8 @@ if (btnCancelSettings) btnCancelSettings.addEventListener('click', closeSettings
 
 if (btnSaveSettings) {
     btnSaveSettings.addEventListener('click', async () => {
-        const masterSink = selectAudioMaster?.value || '36';
-        const headphonesSink = selectAudioHeadphones?.value || '88';
+        const masterSink = selectAudioMaster?.value || 'default';
+        const headphonesSink = selectAudioHeadphones?.value || 'default';
         const micSource = selectAudioMic?.value;
 
         localStorage.setItem('dj_master_sink', masterSink);
@@ -140,62 +148,54 @@ if (btnSaveSettings) {
             });
             const data = await res.json();
             if (data.status === 'ok') {
-                showToast(`✅ Salida activada: ${data.device_name || masterSink}`, 'success');
-            } else {
-                showToast('Salida configurada', 'info');
+                showToast(`Salida de Audio: ${data.device_name || masterSink}`, 'success');
             }
         } catch (err) {
-            showToast('Error al aplicar', 'error');
+            console.warn('Error setting audio route:', err);
         }
+
         closeSettings();
     });
 }
 
+// -------------------------------------------------------------
+// Quick Test Sound
+// -------------------------------------------------------------
 window.testAudioTone = function(type) {
     try {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        const ctx = new AudioContext();
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-
-        osc.type = 'sine';
         osc.frequency.setValueAtTime(type === 'master' ? 440 : 880, ctx.currentTime);
         gain.gain.setValueAtTime(0.2, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
         osc.connect(gain);
         gain.connect(ctx.destination);
-
         osc.start();
-        osc.stop(ctx.currentTime + 0.4);
-
-        showToast(`🔊 Tono de prueba ${type.toUpperCase()}`, 'info');
-    } catch (e) {}
+        osc.stop(ctx.currentTime + 0.5);
+        showToast(`Tono de prueba ${type.toUpperCase()} enviado`, 'info');
+    } catch (e) {
+        console.warn(e);
+    }
 };
 
 // -------------------------------------------------------------
-// Fullscreen Mode Controller
+// Fullscreen Control
 // -------------------------------------------------------------
 function toggleFullscreen() {
     if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(() => {});
     } else {
-        if (document.exitFullscreen) document.exitFullscreen();
+        document.exitFullscreen().catch(() => {});
     }
 }
 
-if (btnToggleFullscreen) {
-    btnToggleFullscreen.addEventListener('click', toggleFullscreen);
+const btnFullscreen = document.getElementById('btn-fullscreen');
+if (btnFullscreen) {
+    btnFullscreen.addEventListener('click', toggleFullscreen);
 }
 
-document.addEventListener('fullscreenchange', () => {
-    const isFs = !!document.fullscreenElement;
-    if (fsTextLabel) {
-        fsTextLabel.textContent = isFs ? '⛶ Salir Pantalla' : '⛶ Pantalla Completa';
-    }
-});
-
-window.addEventListener('keydown', (e) => {
+document.addEventListener('keydown', (e) => {
     if (e.key === 'F11') {
         e.preventDefault();
         toggleFullscreen();
@@ -244,7 +244,7 @@ async function performYouTubeSearch(query) {
     switchTab('tab-youtube');
     youtubeResultsGrid.innerHTML = `
         <div class="empty-state">
-            <h4>Buscando "${query}" en YouTube...</h4>
+            <h4>Buscando "${escapeHtml(query)}" en YouTube...</h4>
             <p class="text-muted">Extrayendo pistas para preescucha.</p>
         </div>
     `;
@@ -272,21 +272,21 @@ function renderYouTubeResults() {
     youtubeResultsGrid.innerHTML = youtubeResults.map((item) => {
         const isPlaying = currentPlayingType === 'youtube' && currentPlayingId === item.id && !audioElement.paused;
         return `
-            <div class="yt-card ${isPlaying ? 'active-preview' : ''}" id="yt-card-${item.id}">
+            <div class="yt-card ${isPlaying ? 'active-preview' : ''}" id="yt-card-${escapeHtml(item.id)}">
                 <div class="yt-thumbnail-wrapper">
-                    <img class="yt-thumbnail" src="${item.thumbnail}" alt="${item.title}" loading="lazy">
-                    <span class="yt-duration-badge">${item.duration_str}</span>
+                    <img class="yt-thumbnail" src="${escapeHtml(item.thumbnail)}" alt="${escapeHtml(item.title)}" loading="lazy">
+                    <span class="yt-duration-badge">${escapeHtml(item.duration_string || '00:00')}</span>
                 </div>
                 <div class="yt-card-body">
                     <div>
-                        <div class="yt-card-title" title="${item.title}">${item.title}</div>
-                        <div class="yt-card-channel">${item.channel}</div>
+                        <div class="yt-card-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
+                        <div class="yt-card-channel">${escapeHtml(item.uploader || '')}</div>
                     </div>
                     <div class="yt-card-actions">
-                        <button class="btn-preview" onclick="togglePreviewYouTube('${item.id}', '${item.url.replace(/'/g, "\\'")}', '${item.title.replace(/'/g, "\\'")}', '${item.channel.replace(/'/g, "\\'")}')">
+                        <button class="btn-preview" onclick="togglePreviewYouTube('${escapeHtml(item.id)}', '${encodeURIComponent(item.url)}', '${encodeURIComponent(item.title)}')">
                             ${isPlaying ? '⏸ Pausa' : '▶ Escuchar'}
                         </button>
-                        <button class="btn-download-card" id="btn-dl-${item.id}" onclick="downloadYouTubeTrack('${item.url.replace(/'/g, "\\'")}', '${item.title.replace(/'/g, "\\'")}', '${item.id}')">
+                        <button class="btn-download-card" id="btn-dl-${escapeHtml(item.id)}" onclick="downloadYouTubeTrack('${encodeURIComponent(item.url)}', '${encodeURIComponent(item.title)}', '${escapeHtml(item.id)}')">
                             ⬇ Bajar
                         </button>
                     </div>
@@ -296,7 +296,8 @@ function renderYouTubeResults() {
     }).join('');
 }
 
-window.togglePreviewYouTube = async function(id, url, title, channel) {
+window.togglePreviewYouTube = async function(id, encUrl, encTitle) {
+    const title = decodeURIComponent(encTitle);
     if (currentPlayingType === 'youtube' && currentPlayingId === id) {
         if (audioElement.paused) {
             audioElement.play();
@@ -318,7 +319,9 @@ window.togglePreviewYouTube = async function(id, url, title, channel) {
     } catch (err) {}
 };
 
-window.downloadYouTubeTrack = async function(url, title, id) {
+window.downloadYouTubeTrack = async function(encUrl, encTitle, id) {
+    const url = decodeURIComponent(encUrl);
+    const title = decodeURIComponent(encTitle);
     const btn = document.getElementById(`btn-dl-${id}`);
     if (btn) {
         btn.textContent = '⏳ En cola...';
@@ -328,6 +331,19 @@ window.downloadYouTubeTrack = async function(url, title, id) {
     await sendDownloadRequest({ query: url, title: title });
     showToast(`"${title}" en cola`, 'success');
 };
+
+async function sendDownloadRequest(payload) {
+    try {
+        const res = await fetch('/api/download', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        fetchQueue();
+    } catch (err) {
+        console.warn(err);
+    }
+}
 
 document.querySelectorAll('.tag-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -356,8 +372,10 @@ window.filterCrateByFolder = function(folderKey) {
         'pop': '🇪🇸 Pop & Indie Español',
         'mixxx': '📂 Carpeta Mixxx'
     };
+
     if (crateCategoryTitle) {
-        crateCategoryTitle.textContent = labels[folderKey] || '📁 Biblioteca';
+        const titleText = labels[folderKey] || '📁 Biblioteca';
+        crateCategoryTitle.innerHTML = `${titleText} <span class="badge" id="crate-filtered-count">0</span>`;
     }
 
     renderCrateTable();
@@ -381,7 +399,7 @@ function getFilteredTracks() {
     const query = (crateSearchInput?.value || '').trim().toLowerCase();
     
     return libraryTracks.filter(track => {
-        const name = track.name.toLowerCase();
+        const name = (track.name || '').toLowerCase();
         const matchesQuery = !query || name.includes(query);
         if (!matchesQuery) return false;
 
@@ -399,8 +417,9 @@ function renderCrateTable() {
     if (!crateTrackList) return;
     const filtered = getFilteredTracks();
 
-    if (crateFilteredCount) {
-        crateFilteredCount.textContent = filtered.length;
+    const countBadge = document.getElementById('crate-filtered-count');
+    if (countBadge) {
+        countBadge.textContent = filtered.length;
     }
 
     if (filtered.length === 0) {
@@ -410,12 +429,12 @@ function renderCrateTable() {
 
     crateTrackList.innerHTML = filtered.map((track, idx) => `
         <tr class="crate-track-row" id="crate-row-${idx}">
-            <td class="crate-track-name-cell" title="${track.name}">🎵 ${track.stem}</td>
+            <td class="crate-track-name-cell" title="${escapeHtml(track.name)}">🎵 ${escapeHtml(track.stem)}</td>
             <td>${track.size_mb}M</td>
-            <td><span style="color:var(--deck-a-color); font-weight:700;">${track.ext}</span></td>
+            <td><span style="color:var(--deck-a-color); font-weight:700;">${escapeHtml(track.ext)}</span></td>
             <td style="text-align:right;">
-                <button class="btn-load-inline load-a" onclick="loadTrackToDeck('a', '${encodeURIComponent(track.name)}', '${track.stem.replace(/'/g, "\\'")}')">👈 A</button>
-                <button class="btn-load-inline load-b" onclick="loadTrackToDeck('b', '${encodeURIComponent(track.name)}', '${track.stem.replace(/'/g, "\\'")}')">B 👉</button>
+                <button class="btn-load-inline load-a" onclick="loadTrackToDeck('a', '${encodeURIComponent(track.name)}', '${encodeURIComponent(track.stem)}')">👈 A</button>
+                <button class="btn-load-inline load-b" onclick="loadTrackToDeck('b', '${encodeURIComponent(track.name)}', '${encodeURIComponent(track.stem)}')">B 👉</button>
             </td>
         </tr>
     `).join('');
@@ -428,7 +447,7 @@ if (crateSearchInput) {
 function renderTrackList() {
     if (!trackList) return;
     const query = (librarySearchInput?.value || '').trim().toLowerCase();
-    const filtered = libraryTracks.filter(t => !query || t.name.toLowerCase().includes(query));
+    const filtered = libraryTracks.filter(t => !query || (t.name || '').toLowerCase().includes(query));
 
     if (filtered.length === 0) {
         trackList.innerHTML = `<div class="loading-state text-muted" style="padding:0.5rem;">No se encontraron pistas.</div>`;
@@ -438,82 +457,89 @@ function renderTrackList() {
     trackList.innerHTML = filtered.map(track => `
         <div class="track-item">
             <div style="flex:1; min-width:0; margin-right:0.5rem;">
-                <strong style="display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🎵 ${track.stem}</strong>
-                <span class="text-dim" style="font-size:0.7rem;">${track.ext} • ${track.size_mb} MB</span>
+                <strong style="display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🎵 ${escapeHtml(track.stem)}</strong>
+                <span class="text-dim" style="font-size:0.7rem;">${escapeHtml(track.ext)} • ${track.size_mb} MB</span>
             </div>
             <div class="track-actions">
-                <button class="btn-load-inline load-a" onclick="loadTrackToDeck('a', '${encodeURIComponent(track.name)}', '${track.stem.replace(/'/g, "\\'")}')">👈 DECK A</button>
-                <button class="btn-load-inline load-b" onclick="loadTrackToDeck('b', '${encodeURIComponent(track.name)}', '${track.stem.replace(/'/g, "\\'")}')">DECK B 👉</button>
+                <button class="btn-load-inline load-a" onclick="loadTrackToDeck('a', '${encodeURIComponent(track.name)}', '${encodeURIComponent(track.stem)}')">👈 DECK A</button>
+                <button class="btn-load-inline load-b" onclick="loadTrackToDeck('b', '${encodeURIComponent(track.name)}', '${encodeURIComponent(track.stem)}')">DECK B 👉</button>
             </div>
         </div>
     `).join('');
 }
 
-if (librarySearchInput) {
-    librarySearchInput.addEventListener('input', renderTrackList);
-}
-
 // -------------------------------------------------------------
-// Download Queue Polling & UI
+// Download Queue & Polling
 // -------------------------------------------------------------
-async function sendDownloadRequest(payload) {
-    try {
-        const res = await fetch('/api/download', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (data.status === 'queued') {
-            showToast(`Descarga encolada`, 'success');
-            fetchQueue();
-        }
-    } catch (err) {}
-}
-
 async function fetchQueue() {
     try {
         const res = await fetch('/api/queue');
         if (!res.ok) return;
         const data = await res.json();
-        renderQueue(data.tasks || []);
+        const tasks = data.tasks || [];
+
+        const pending = tasks.filter(t => t.status === 'pending' || t.status === 'downloading');
+        if (queueBadge) {
+            queueBadge.textContent = pending.length;
+            queueBadge.style.display = pending.length > 0 ? 'inline-block' : 'none';
+        }
+
+        renderQueue(tasks);
     } catch (err) {}
 }
 
-let lastCompletedCount = 0;
-
 function renderQueue(tasks) {
-    if (queueCount) queueCount.textContent = tasks.length;
-    const hasActive = tasks.some(t => t.status === 'downloading' || t.status === 'pending');
-    if (queueStatusText) {
-        queueStatusText.textContent = hasActive ? 'Descargando...' : 'Inactivo';
-        queueStatusText.className = `status-indicator ${hasActive ? 'active' : ''}`;
-    }
-
-    const currentCompleted = tasks.filter(t => t.status === 'completed').length;
-    if (currentCompleted > lastCompletedCount) {
-        lastCompletedCount = currentCompleted;
-        fetchLibrary();
-    }
-
     if (!queueList) return;
     if (tasks.length === 0) {
-        queueList.innerHTML = `<div class="text-muted" style="padding:0.5rem;">No hay descargas en curso.</div>`;
+        queueList.innerHTML = `<div class="empty-state"><h4>No hay descargas activas</h4></div>`;
         return;
     }
 
-    queueList.innerHTML = tasks.slice(0, 10).map(task => `
-        <div style="background:var(--vdj-bg-surface); border:1px solid var(--vdj-border); padding:0.4rem 0.65rem; border-radius:4px; margin-bottom:0.3rem; display:flex; justify-content:space-between; font-size:0.75rem;">
-            <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%;">${task.title || task.query}</span>
-            <span style="color:var(--deck-b-color); font-weight:700;">${task.status === 'downloading' ? `${task.progress}%` : task.status}</span>
-        </div>
-    `).join('');
+    queueList.innerHTML = tasks.map(task => {
+        let badgeClass = 'badge-pending';
+        let statusText = 'En cola';
+        if (task.status === 'downloading') {
+            badgeClass = 'badge-downloading';
+            statusText = `Descargando ${task.progress}%`;
+        } else if (task.status === 'completed') {
+            badgeClass = 'badge-completed';
+            statusText = 'Completado';
+        } else if (task.status === 'failed') {
+            badgeClass = 'badge-failed';
+            statusText = 'Error';
+        }
+
+        return `
+            <div class="queue-item">
+                <div class="queue-item-header">
+                    <strong>${escapeHtml(task.title || task.query)}</strong>
+                    <span class="badge ${badgeClass}">${statusText}</span>
+                </div>
+                ${task.status === 'downloading' ? `
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" style="width:${task.progress}%"></div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
 }
 
-// -------------------------------------------------------------
-// Initialization
-// -------------------------------------------------------------
-fetchLibrary();
-fetchQueue();
-loadAudioDevicesConfig();
-queuePollingInterval = setInterval(fetchQueue, 1500);
+// Global folder opener
+const btnOpenFolder = document.getElementById('btn-open-folder');
+if (btnOpenFolder) {
+    btnOpenFolder.addEventListener('click', async () => {
+        try {
+            await fetch('/api/open-folder', { method: 'POST' });
+            showToast('Abriendo carpeta de música...', 'info');
+        } catch (e) {}
+    });
+}
+
+// Auto-polling & Init
+document.addEventListener('DOMContentLoaded', () => {
+    fetchLibrary();
+    fetchQueue();
+    setInterval(fetchQueue, 2000);
+    setInterval(fetchLibrary, 5000);
+});

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-DJ Music Downloader & Interactive YouTube Studio for Mixxx
-Features: YouTube Search, Direct Local Audio Streaming Proxy, Batch Download, and WirePlumber/wpctl Headphone Audio Isolation.
+DjPaz - Professional Web DJ Studio & Hardware Mixer Server
+High-Performance Audio Engine, Multi-Channel Routing Proxy, and Real-Time Music Library.
 """
 
 import os
@@ -12,37 +12,114 @@ import time
 import uuid
 import queue
 import shutil
+import argparse
 import urllib.parse
 import subprocess
 import threading
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
+# ==============================================================================
+# Configuration & Path Resolver
+# ==============================================================================
+
+def get_default_music_dir():
+    """Detect appropriate Music folder cross-platform (Linux, Windows, macOS)."""
+    if "DJPAZ_MUSIC_DIR" in os.environ:
+        return Path(os.environ["DJPAZ_MUSIC_DIR"]).expanduser().resolve()
+    home = Path.home()
+    for candidate in [home / "Music", home / "Música", home / "musica"]:
+        if candidate.exists():
+            return candidate.resolve()
+    return (home / "Music").resolve()
+
+
+def get_deno_path():
+    """Detect Deno JavaScript runtime if available for YouTube extraction."""
+    which_deno = shutil.which("deno")
+    if which_deno:
+        return Path(which_deno)
+    user_deno = Path.home() / ".deno" / "bin" / "deno"
+    if user_deno.exists():
+        return user_deno
+    return None
+
+
+# Global Server Configuration (populated in main())
 PORT = 4848
-MUSIC_DIR = Path("/home/orouhost/Música")
+HOST = "0.0.0.0"
+MUSIC_DIR = get_default_music_dir()
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-DENO_PATH = Path("/home/orouhost/.deno/bin/deno")
+DENO_PATH = get_deno_path()
 
-# Ensure directories exist
-MUSIC_DIR.mkdir(parents=True, exist_ok=True)
-STATIC_DIR.mkdir(parents=True, exist_ok=True)
-
-# State management
+# State Management
 tasks_lock = threading.Lock()
 download_tasks = []
 download_queue = queue.Queue()
-current_selected_sink = "uc03_usb"
+current_selected_sink = "default"
 
 
 def get_env():
+    """Build environment with Deno and system PATH."""
     env = os.environ.copy()
-    if DENO_PATH.exists():
+    if DENO_PATH and DENO_PATH.exists():
         env["PATH"] = f"{DENO_PATH.parent}:{env.get('PATH', '')}"
     return env
 
 
+def is_safe_path(base_dir: Path, target_path: Path) -> bool:
+    """Validate that target_path is within base_dir (prevent path traversal)."""
+    try:
+        target = target_path.resolve()
+        base = base_dir.resolve()
+        return target.is_relative_to(base)
+    except (AttributeError, ValueError):
+        try:
+            return str(target_path.resolve()).startswith(str(base_dir.resolve()))
+        except Exception:
+            return False
+
+
+def open_system_folder(path: Path):
+    """Open folder in OS file manager cross-platform (Windows, Linux, macOS)."""
+    path_str = str(path.resolve())
+    if sys.platform == "win32":
+        try:
+            os.startfile(path_str)
+            return True
+        except Exception as e:
+            print("[!] Error opening Windows Explorer:", e)
+    elif sys.platform == "darwin":
+        try:
+            subprocess.Popen(["open", path_str])
+            return True
+        except Exception as e:
+            print("[!] Error opening macOS Finder:", e)
+    else:
+        if shutil.which("xdg-open"):
+            try:
+                subprocess.Popen(["xdg-open", path_str])
+                return True
+            except Exception as e:
+                print("[!] Error opening Linux file manager:", e)
+    return False
+
+
+def send_system_notification(title: str, message: str):
+    """Send OS desktop notification if available."""
+    if sys.platform.startswith("linux") and shutil.which("notify-send"):
+        try:
+            subprocess.run(["notify-send", "-i", "audio-headphones", title, message], check=False, timeout=1)
+        except Exception:
+            pass
+
+
+# ==============================================================================
+# Background Download Worker
+# ==============================================================================
+
 def background_worker():
-    """Worker thread processing download tasks sequentially."""
+    """Worker thread processing download tasks sequentially with yt-dlp."""
     while True:
         task_id = download_queue.get()
         if task_id is None:
@@ -83,7 +160,7 @@ def background_worker():
             "-o", str(MUSIC_DIR / "%(title)s.%(ext)s")
         ]
 
-        if DENO_PATH.exists():
+        if DENO_PATH and DENO_PATH.exists():
             cmd.extend(["--js-runtimes", f"deno:{DENO_PATH}"])
 
         if query.startswith("http://") or query.startswith("https://"):
@@ -101,6 +178,8 @@ def background_worker():
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 bufsize=1,
                 env=get_env()
             )
@@ -137,17 +216,11 @@ def background_worker():
                     task["progress"] = 100
                     if not task.get("title"):
                         task["title"] = query
-                try:
-                    subprocess.run(
-                        ["notify-send", "-i", "audio-headphones", "Mixxx - Descarga Lista", f"{task.get('title', query)}"],
-                        check=False
-                    )
-                except Exception:
-                    pass
+                send_system_notification("DjPaz - Descarga Lista", str(task.get('title', query)))
             else:
                 with tasks_lock:
                     task["status"] = "failed"
-                    task["error"] = "Error al descargar el audio de YouTube."
+                    task["error"] = "Error al descargar el audio de YouTube con yt-dlp."
         except Exception as e:
             with tasks_lock:
                 task["status"] = "failed"
@@ -160,104 +233,83 @@ worker_thread = threading.Thread(target=background_worker, daemon=True)
 worker_thread.start()
 
 
-def get_pipewire_audio_devices():
-    """Detect available physical audio output targets via PipeWire."""
-    return [
-        {
-            "id": "uc03_usb",
-            "name": "Adaptador USB UC03",
-            "subtitle": "🎧 Salida privada de Auriculares USB",
-            "icon": "🔌",
-            "pattern": "UC03"
-        },
-        {
-            "id": "hercules_headphones",
-            "name": "Auriculares Hercules Inpulse 200",
-            "subtitle": "🎧 Canales 3-4 (Conector Frontal CUE)",
-            "icon": "🎧",
-            "pattern": "DJControl Inpulse 200"
-        },
-        {
-            "id": "pc_internal",
-            "name": "Jack / Altavoces del PC",
-            "subtitle": "💻 Salida 3.5mm integrada",
-            "icon": "💻",
-            "pattern": "Built-in Audio"
-        }
-    ]
-
+# ==============================================================================
+# Audio Device & PipeWire Integrator
+# ==============================================================================
 
 def get_pipewire_devices_detailed():
-    """Parse wpctl status to return detailed outputs (sinks) and inputs (sources)."""
+    """Parse wpctl status to return real audio outputs and inputs."""
     sinks = []
     sources = []
-    try:
-        res = subprocess.run(["wpctl", "status"], capture_output=True, text=True, timeout=2)
-        lines = res.stdout.splitlines()
-        section = None
-        for line in lines:
-            if "Sinks:" in line:
-                section = "sinks"
-                continue
-            elif "Sources:" in line:
-                section = "sources"
-                continue
-            elif "Streams:" in line or "Sink endpoints:" in line or "Source endpoints:" in line or "Settings" in line:
-                section = None
-                continue
 
-            if section in ("sinks", "sources"):
-                line_str = line.strip()
-                if not line_str or line_str.startswith("│"):
-                    line_str = line.replace("│", "").strip()
-                m = re.search(r"(\*?)\s*(\d+)\.\s+(.+?)\s+\[", line_str)
-                if m:
-                    is_default = bool(m.group(1))
-                    node_id = m.group(2)
-                    name = m.group(3).strip()
-                    
-                    icon = "🔊" if section == "sinks" else "🎤"
-                    if "uc03" in name.lower() or "headphone" in name.lower() or "auricular" in name.lower():
-                        icon = "🎧"
-                    elif "inpulse" in name.lower() or "hercules" in name.lower():
-                        icon = "🎛️"
-                    elif "built-in" in name.lower():
-                        icon = "💻"
+    if shutil.which("wpctl"):
+        try:
+            res = subprocess.run(["wpctl", "status"], capture_output=True, text=True, timeout=2, encoding="utf-8", errors="replace")
+            lines = res.stdout.splitlines()
+            section = None
+            for line in lines:
+                if "Sinks:" in line:
+                    section = "sinks"
+                    continue
+                elif "Sources:" in line:
+                    section = "sources"
+                    continue
+                elif "Streams:" in line or "Sink endpoints:" in line or "Source endpoints:" in line or "Settings" in line:
+                    section = None
+                    continue
 
-                    dev_obj = {
-                        "id": node_id,
-                        "name": name,
-                        "is_default": is_default,
-                        "icon": icon,
-                        "type": section
-                    }
-                    if section == "sinks":
-                        sinks.append(dev_obj)
-                    else:
-                        sources.append(dev_obj)
-    except Exception as e:
-        print("[!] Error parsing pipewire devices:", e)
+                if section in ("sinks", "sources"):
+                    line_str = line.strip()
+                    if not line_str or line_str.startswith("│"):
+                        line_str = line.replace("│", "").strip()
+                    m = re.search(r"(\*?)\s*(\d+)\.\s+(.+?)\s+\[", line_str)
+                    if m:
+                        is_default = bool(m.group(1))
+                        node_id = m.group(2)
+                        name = m.group(3).strip()
+                        
+                        icon = "🔊" if section == "sinks" else "🎤"
+                        if "uc03" in name.lower() or "headphone" in name.lower() or "auricular" in name.lower():
+                            icon = "🎧"
+                        elif "inpulse" in name.lower() or "hercules" in name.lower():
+                            icon = "🎛️"
+                        elif "built-in" in name.lower():
+                            icon = "💻"
+
+                        dev_obj = {
+                            "id": node_id,
+                            "name": name,
+                            "is_default": is_default,
+                            "icon": icon,
+                            "type": section
+                        }
+                        if section == "sinks":
+                            sinks.append(dev_obj)
+                        else:
+                            sources.append(dev_obj)
+        except Exception as e:
+            print("[!] Error parsing PipeWire devices:", e)
 
     if not sinks:
         sinks = [
-            {"id": "88", "name": "UC03 Adaptador USB Estéreo", "is_default": True, "icon": "🎧", "type": "sinks"},
-            {"id": "36", "name": "DJControl Inpulse 200 Mk2 (Master & CUE)", "is_default": False, "icon": "🎛️", "type": "sinks"},
-            {"id": "50", "name": "Built-in Audio Estéreo analógico (PC)", "is_default": False, "icon": "💻", "type": "sinks"}
+            {"id": "default", "name": "Dispositivo de Audio Principal del Sistema", "is_default": True, "icon": "🔊", "type": "sinks"},
+            {"id": "hercules", "name": "Hercules DJControl Inpulse 200 MK2 (4 Canales)", "is_default": False, "icon": "🎛️", "type": "sinks"}
         ]
     if not sources:
         sources = [
-            {"id": "51", "name": "Micrófono Integrado del PC", "is_default": True, "icon": "🎤", "type": "sources"},
-            {"id": "80", "name": "Micrófono USB UC03", "is_default": False, "icon": "🎙️", "type": "sources"}
+            {"id": "default_mic", "name": "Micrófono del Sistema", "is_default": True, "icon": "🎤", "type": "sources"}
         ]
     return sinks, sources
 
 
 def set_system_sink_by_device_id(device_id):
-    """Enforce the audio sink via wpctl set-default at the OS level."""
+    """Enforce audio sink via wpctl set-default on Linux/PipeWire."""
     global current_selected_sink
     current_selected_sink = str(device_id)
 
-    # 1. If device_id is a numeric PipeWire node ID (e.g. "36", "88", "50")
+    if not shutil.which("wpctl"):
+        return True
+
     if str(device_id).isdigit():
         try:
             res = subprocess.run(["wpctl", "set-default", str(device_id)], capture_output=True, text=True, timeout=2)
@@ -265,34 +317,13 @@ def set_system_sink_by_device_id(device_id):
                 print(f"[*] Successfully set default audio sink to {device_id}")
                 return True
         except Exception as e:
-            print("[!] Error setting numeric wpctl sink:", e)
-
-    # 2. If device_id is a mnemonic or pattern string
-    devices = get_pipewire_audio_devices()
-    target_device = next((d for d in devices if d["id"] == str(device_id)), None)
-    pattern = target_device["pattern"] if target_device else str(device_id)
-
-    try:
-        res = subprocess.run(["wpctl", "status"], capture_output=True, text=True, timeout=2)
-        in_sinks = False
-        for line in res.stdout.splitlines():
-            if "Sinks:" in line:
-                in_sinks = True
-                continue
-            if in_sinks:
-                if "Sink endpoints:" in line or "Sources:" in line or not line.strip():
-                    break
-                if pattern.lower() in line.lower():
-                    m = re.search(r"(\d+)\.", line)
-                    if m:
-                        sink_id = m.group(1)
-                        subprocess.run(["wpctl", "set-default", sink_id], capture_output=True)
-                        print(f"[*] Set default audio sink to {sink_id} ({pattern})")
-                        return True
-    except Exception as e:
-        print("[!] Error setting wpctl sink:", e)
+            print("[!] Error setting wpctl sink:", e)
     return False
 
+
+# ==============================================================================
+# HTTP Request Handler & REST API
+# ==============================================================================
 
 class DJRequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -304,144 +335,131 @@ class DJRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.end_headers()
+    def serve_audio_file(self, file_path: Path):
+        """Serve audio with full HTTP Range request support for seeking."""
+        try:
+            file_size = file_path.stat().st_size
+            ext = file_path.suffix.lower()
+            mime_map = {
+                ".mp3": "audio/mpeg",
+                ".flac": "audio/flac",
+                ".wav": "audio/wav",
+                ".m4a": "audio/mp4",
+                ".aac": "audio/aac",
+                ".ogg": "audio/ogg",
+                ".opus": "audio/opus"
+            }
+            mime = mime_map.get(ext, "audio/mpeg")
+
+            range_header = self.headers.get("Range")
+            if range_header and range_header.startswith("bytes="):
+                ranges = range_header.replace("bytes=", "").split("-")
+                start = int(ranges[0]) if ranges[0] else 0
+                end = int(ranges[1]) if ranges[1] else file_size - 1
+                length = end - start + 1
+
+                self.send_response(206)
+                self.send_header("Content-Type", mime)
+                self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+                self.send_header("Content-Length", str(length))
+                self.send_header("Accept-Ranges", "bytes")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+
+                with open(file_path, "rb") as f:
+                    f.seek(start)
+                    self.wfile.write(f.read(length))
+            else:
+                self.send_response(200)
+                self.send_header("Content-Type", mime)
+                self.send_header("Content-Length", str(file_size))
+                self.send_header("Accept-Ranges", "bytes")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+
+                with open(file_path, "rb") as f:
+                    shutil.copyfileobj(f, self.wfile)
+        except Exception:
+            pass
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         params = urllib.parse.parse_qs(parsed.query)
 
-        # API: Audio Output Devices & Detailed Config
-        if path == "/api/audio-devices" or path == "/api/audio-config":
-            devices = get_pipewire_audio_devices()
-            sinks, sources = get_pipewire_devices_detailed()
-            self.send_json({
-                "devices": devices,
-                "outputs": sinks,
-                "inputs": sources,
-                "current_sink": current_selected_sink,
-                "current_master": current_selected_sink,
-                "current_headphones": current_selected_sink
-            })
-            return
-
         # API: Search YouTube
         if path == "/api/search":
-            q = params.get("q", [""])[0].strip()
-            if not q:
+            query = params.get("q", [""])[0].strip()
+            if not query:
                 self.send_json({"results": []})
                 return
 
-            try:
-                cmd = ["yt-dlp", "--flat-playlist", "-J", "--no-warnings", f"ytsearch8:{q}"]
-                res = subprocess.run(cmd, capture_output=True, text=True, env=get_env(), timeout=12)
-                results = []
-                if res.returncode == 0:
-                    data = json.loads(res.stdout)
-                    entries = data.get("entries", [])
-                    for e in entries:
-                        if not e:
-                            continue
-                        duration = e.get("duration")
-                        dur_str = "0:00"
-                        if duration and not isinstance(duration, str):
-                            m = int(duration) // 60
-                            s = int(duration) % 60
-                            dur_str = f"{m}:{s:02d}"
-
-                        vid_id = e.get("id")
-                        thumb = e.get("thumbnail") or e.get("thumbnails", [{}])[-1].get("url")
-                        if not thumb and vid_id:
-                            thumb = f"https://i.ytimg.com/vi/{vid_id}/mqdefault.jpg"
-
-                        results.append({
-                            "id": vid_id,
-                            "title": e.get("title", "Desconocido"),
-                            "channel": e.get("uploader") or e.get("channel", "YouTube"),
-                            "duration_str": dur_str,
-                            "thumbnail": thumb,
-                            "url": f"https://www.youtube.com/watch?v={vid_id}" if vid_id else e.get("url")
-                        })
-                self.send_json({"results": results})
-            except Exception as e:
-                self.send_json({"error": str(e), "results": []}, 500)
-            return
-
-        # API: Direct Local Streaming Proxy (Instant, zero CORS issues)
-        if path == "/api/preview-stream":
-            vid_url = params.get("url", [""])[0].strip()
-            vid_id = params.get("id", [""])[0].strip()
-            target = vid_url or (f"https://www.youtube.com/watch?v={vid_id}" if vid_id else "")
-            if not target:
-                self.send_error(400, "Missing url or id")
-                return
-
-            set_system_sink_by_device_id(current_selected_sink)
-
             cmd = [
                 "yt-dlp",
-                "-o", "-",
-                "-f", "ba/18/b",
+                "--dump-json",
+                "--default-search", "ytsearch8",
                 "--no-playlist",
-                "--no-warnings",
-                "--extractor-args", "youtube:player_client=web,mweb,ios",
-                target
+                "--skip-download",
+                "--extractor-args", "youtube:player_client=web,mweb",
+                f"ytsearch8:{query}"
             ]
-            if DENO_PATH.exists():
+            if DENO_PATH and DENO_PATH.exists():
                 cmd.extend(["--js-runtimes", f"deno:{DENO_PATH}"])
 
+            results = []
             try:
-                proc = subprocess.Popen(
+                proc = subprocess.run(
                     cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
-                    bufsize=65536,
-                    env=get_env()
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    env=get_env(),
+                    encoding="utf-8",
+                    errors="replace"
                 )
-
-                self.send_response(200)
-                self.send_header("Content-Type", "audio/mp4")
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.send_header("Accept-Ranges", "bytes")
-                self.send_header("Cache-Control", "no-cache")
-                self.end_headers()
-
-                try:
-                    while True:
-                        chunk = proc.stdout.read(16384)
-                        if not chunk:
-                            break
-                        self.wfile.write(chunk)
-                        self.wfile.flush()
-                except Exception:
-                    pass
-                finally:
-                    proc.terminate()
-                    proc.wait()
+                for line in proc.stdout.splitlines():
+                    if not line.strip():
+                        continue
+                    try:
+                        info = json.loads(line)
+                        dur = info.get("duration", 0)
+                        results.append({
+                            "id": info.get("id"),
+                            "title": info.get("title"),
+                            "uploader": info.get("uploader"),
+                            "duration": dur,
+                            "duration_string": f"{dur // 60}:{dur % 60:02d}" if dur else "00:00",
+                            "thumbnail": info.get("thumbnail"),
+                            "url": f"https://www.youtube.com/watch?v={info.get('id')}"
+                        })
+                    except Exception:
+                        continue
             except Exception as e:
-                pass
+                print(f"[!] YouTube search error: {e}")
+
+            self.send_json({"results": results})
             return
 
-        # API: List Library
+        # API: List Music Library (Recursive scan with folders)
         if path == "/api/library":
             tracks = []
             valid_exts = {".mp3", ".flac", ".wav", ".m4a", ".ogg", ".aac", ".opus", ".wma"}
             if MUSIC_DIR.exists():
-                for p in sorted(MUSIC_DIR.iterdir(), key=lambda f: f.stat().st_mtime if f.is_file() else 0, reverse=True):
+                for p in sorted(MUSIC_DIR.rglob("*"), key=lambda f: f.stat().st_mtime if f.is_file() else 0, reverse=True):
                     if p.is_file() and p.suffix.lower() in valid_exts:
                         try:
                             stat = p.stat()
+                            rel_path = str(p.relative_to(MUSIC_DIR))
+                            folder = p.parent.name if p.parent != MUSIC_DIR else "Root"
                             tracks.append({
                                 "name": p.name,
                                 "stem": p.stem,
+                                "rel_path": rel_path,
+                                "folder": folder,
                                 "ext": p.suffix.lower().replace(".", "").upper(),
                                 "size_bytes": stat.st_size,
                                 "size_mb": round(stat.st_size / (1024 * 1024), 2),
@@ -460,7 +478,7 @@ class DJRequestHandler(BaseHTTPRequestHandler):
             })
             return
 
-        # API: List Queue
+        # API: List Active Queue
         if path == "/api/queue":
             with tasks_lock:
                 tasks_copy = list(reversed(download_tasks[-50:]))
@@ -475,22 +493,21 @@ class DJRequestHandler(BaseHTTPRequestHandler):
                 return
 
             file_path = (MUSIC_DIR / filename).resolve()
-            if not str(file_path).startswith(str(MUSIC_DIR.resolve())) or not file_path.exists():
+            if not is_safe_path(MUSIC_DIR, file_path) or not file_path.exists():
                 self.send_error(404, "File not found")
                 return
 
-            set_system_sink_by_device_id(current_selected_sink)
             self.serve_audio_file(file_path)
             return
 
-        # Serve static files
+        # Serve static frontend files
         if path == "/" or path == "/index.html":
             target_file = STATIC_DIR / "index.html"
             content_type = "text/html; charset=utf-8"
         else:
             rel_path = path.lstrip("/")
             target_file = (STATIC_DIR / rel_path).resolve()
-            if not str(target_file).startswith(str(STATIC_DIR.resolve())) or not target_file.exists():
+            if not is_safe_path(STATIC_DIR, target_file) or not target_file.exists():
                 self.send_error(404, "Not Found")
                 return
 
@@ -518,52 +535,6 @@ class DJRequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_error(500, str(e))
 
-    def serve_audio_file(self, file_path):
-        """Serve local audio file with Range requests."""
-        try:
-            file_size = file_path.stat().st_size
-            range_header = self.headers.get("Range")
-
-            ext = file_path.suffix.lower()
-            mime_types = {
-                ".mp3": "audio/mpeg",
-                ".flac": "audio/flac",
-                ".wav": "audio/wav",
-                ".m4a": "audio/mp4",
-                ".ogg": "audio/ogg",
-                ".opus": "audio/opus",
-                ".aac": "audio/aac",
-            }
-            mime = mime_types.get(ext, "audio/mpeg")
-
-            if range_header:
-                bytes_range = range_header.strip().replace("bytes=", "").split("-")
-                start = int(bytes_range[0])
-                end = int(bytes_range[1]) if bytes_range[1] else file_size - 1
-                length = end - start + 1
-
-                self.send_response(206)
-                self.send_header("Content-Type", mime)
-                self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
-                self.send_header("Content-Length", str(length))
-                self.send_header("Accept-Ranges", "bytes")
-                self.end_headers()
-
-                with open(file_path, "rb") as f:
-                    f.seek(start)
-                    self.wfile.write(f.read(length))
-            else:
-                self.send_response(200)
-                self.send_header("Content-Type", mime)
-                self.send_header("Content-Length", str(file_size))
-                self.send_header("Accept-Ranges", "bytes")
-                self.end_headers()
-
-                with open(file_path, "rb") as f:
-                    shutil.copyfileobj(f, self.wfile)
-        except Exception:
-            pass
-
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
@@ -589,7 +560,8 @@ class DJRequestHandler(BaseHTTPRequestHandler):
 
         # API: Set Exclusive Audio Route
         if path == "/api/set-audio-route":
-            master_id = data.get("master_id") or data.get("device_id", "36")
+            master_id = data.get("master_id") or data.get("device_id", "default")
+            headphones_id = data.get("headphones_id", master_id)
             success = set_system_sink_by_device_id(master_id)
             
             sinks, _ = get_pipewire_devices_detailed()
@@ -599,11 +571,12 @@ class DJRequestHandler(BaseHTTPRequestHandler):
             self.send_json({
                 "status": "ok" if success else "error",
                 "device_id": master_id,
+                "headphones_id": headphones_id,
                 "device_name": name
             })
             return
 
-        # API: Request Download
+        # API: Request Audio Download
         if path == "/api/download":
             query = data.get("query", "").strip()
             title = data.get("title", "").strip() or query
@@ -617,10 +590,6 @@ class DJRequestHandler(BaseHTTPRequestHandler):
                     q_clean = str(q).strip()
                     if q_clean and not any(t["query"] == q_clean for t in to_add):
                         to_add.append({"query": q_clean, "title": q_clean})
-
-            if not to_add:
-                self.send_json({"error": "No query provided"}, 400)
-                return
 
             added_tasks = []
             with tasks_lock:
@@ -641,13 +610,10 @@ class DJRequestHandler(BaseHTTPRequestHandler):
             self.send_json({"status": "queued", "count": len(added_tasks), "tasks": added_tasks})
             return
 
-        # API: Open Music Folder
+        # API: Open Music Folder in File Manager
         if path == "/api/open-folder":
-            try:
-                subprocess.Popen(["xdg-open", str(MUSIC_DIR)])
-                self.send_json({"status": "opened", "path": str(MUSIC_DIR)})
-            except Exception as e:
-                self.send_json({"error": str(e)}, 500)
+            success = open_system_folder(MUSIC_DIR)
+            self.send_json({"status": "opened" if success else "error", "path": str(MUSIC_DIR)})
             return
 
         self.send_error(404, "Not Found")
@@ -657,7 +623,7 @@ class DJRequestHandler(BaseHTTPRequestHandler):
         path = parsed.path
         params = urllib.parse.parse_qs(parsed.query)
 
-        # API: Delete audio file
+        # API: Delete Audio File from Library
         if path == "/api/library":
             filename = params.get("file", [""])[0]
             if not filename:
@@ -665,7 +631,7 @@ class DJRequestHandler(BaseHTTPRequestHandler):
                 return
 
             file_path = (MUSIC_DIR / filename).resolve()
-            if not str(file_path).startswith(str(MUSIC_DIR.resolve())) or not file_path.exists():
+            if not is_safe_path(MUSIC_DIR, file_path) or not file_path.exists():
                 self.send_error(404, "File not found")
                 return
 
@@ -683,16 +649,40 @@ class DJRequestHandler(BaseHTTPRequestHandler):
         self.send_error(404, "Not Found")
 
 
-def run():
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), DJRequestHandler)
-    print(f"🎵 DJ Downloader Server running at http://127.0.0.1:{PORT}")
+# ==============================================================================
+# CLI Entrypoint
+# ==============================================================================
+
+def main():
+    global PORT, HOST, MUSIC_DIR
+
+    parser = argparse.ArgumentParser(description="DjPaz - Professional Web DJ Studio & Hardware Mixer Server")
+    parser.add_argument("--port", "-p", type=int, default=int(os.environ.get("PORT", 4848)), help="Port to listen on (default: 4848)")
+    parser.add_argument("--host", "-H", type=str, default=os.environ.get("HOST", "0.0.0.0"), help="Host address to bind (default: 0.0.0.0)")
+    parser.add_argument("--music-dir", "-m", type=str, default=None, help="Custom music library directory path")
+    args = parser.parse_args()
+
+    PORT = args.port
+    HOST = args.host
+    if args.music_dir:
+        MUSIC_DIR = Path(args.music_dir).expanduser().resolve()
+        MUSIC_DIR.mkdir(parents=True, exist_ok=True)
+
+    print("=================================================================")
+    print(f"🎧 DjPaz Studio Server")
+    print(f"📍 Directorio de Música: {MUSIC_DIR}")
+    print(f"🌐 Servidor escuchando en: http://{HOST}:{PORT}")
+    print(f"🌐 Acceso local:          http://localhost:{PORT}")
+    print("=================================================================")
+
+    server = ThreadingHTTPServer((HOST, PORT), DJRequestHandler)
     try:
-        set_system_sink_by_device_id("uc03_usb")
         server.serve_forever()
     except KeyboardInterrupt:
+        print("\n[*] Apagando servidor DjPaz...")
         download_queue.put(None)
         server.shutdown()
 
 
 if __name__ == "__main__":
-    run()
+    main()
