@@ -1439,6 +1439,19 @@ class UniversalMidiController {
                     return;
                 }
 
+                // Hardware Browser Knob Click & Assistant Button
+                if ((channel === 0 || channel === 1 || channel === 2) && (data1 === 0x01 || data1 === 0x2C || data1 === 0x09 || data1 === 0x2D)) {
+                    if (window.loadSelectedCrateTrack) {
+                        const preferredDeck = this.shiftA ? 'a' : (this.shiftB ? 'b' : null);
+                        window.loadSelectedCrateTrack(preferredDeck);
+                    }
+                    return;
+                }
+                if ((channel === 0 || channel === 1) && (data1 === 0x02 || data1 === 0x24 || data1 === 0x1B)) {
+                    this.cycleAssistant();
+                    return;
+                }
+
                 // PFL Cue
                 if ((channel === 1 && (data1 === 0x0C || data1 === 0x0A || data1 === 0x0E || data1 === 0x54)) || (channel === 0 && (data1 === 0x0C || data1 === 0x0E || data1 === 0x18))) {
                     toggleDeckPFL('a');
@@ -1531,6 +1544,9 @@ class UniversalMidiController {
                         if (this.mixer.headphoneGain && window.djAudioCtx) {
                             this.mixer.headphoneGain.gain.setTargetAtTime(val, window.djAudioCtx.currentTime, 0.015);
                         }
+                    } else if (data1 === 0x01 || data1 === 0x1A || data1 === 0x03 || data1 === 0x3C) {
+                        const delta = (data2 > 64) ? (data2 - 128) : ((data2 === 0 || data2 === 127) ? (data2 === 0 ? -1 : 1) : (data2 > 0 ? 1 : -1));
+                        if (window.navigateCrateBrowser) window.navigateCrateBrowser(delta <= 0 ? -1 : 1);
                     }
                 }
 
@@ -2126,9 +2142,14 @@ window.handleNeedleDrop = function(deckId, event) {
 
 window.loadTrackToDeck = function(deckId, filename, stemName) {
     if (!window.djMixer.initialized) window.djMixer.init();
-    const url = `/api/audio?file=${filename}`;
+    const encodedFilename = encodeURIComponent(decodeURIComponent(filename));
+    const url = `/api/audio?file=${encodedFilename}`;
+    const displayName = stemName ? decodeURIComponent(stemName) : decodeURIComponent(filename);
     const deck = deckId === 'a' ? window.djMixer.deckA : window.djMixer.deckB;
-    if (deck) deck.loadTrack(stemName || decodeURIComponent(filename), url);
+    if (deck) {
+        deck.loadTrack(displayName, url);
+        showToast(`Deck ${deckId.toUpperCase()}: Cargada "${displayName}"`, 'success');
+    }
 };
 
 window.triggerHotCue = function(deckId, idx) {

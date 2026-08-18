@@ -529,6 +529,47 @@ function getFilteredTracks() {
     });
 }
 
+let selectedCrateIndex = 0;
+
+window.selectCrateTrack = function(idx) {
+    const filtered = getFilteredTracks();
+    if (!filtered || filtered.length === 0) return;
+    if (idx < 0) idx = 0;
+    if (idx >= filtered.length) idx = filtered.length - 1;
+    selectedCrateIndex = idx;
+
+    document.querySelectorAll('.crate-track-row').forEach((row, i) => {
+        row.classList.toggle('selected-track', i === selectedCrateIndex);
+    });
+
+    const targetRow = document.getElementById(`crate-row-${selectedCrateIndex}`);
+    if (targetRow) {
+        targetRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+};
+
+window.navigateCrateBrowser = function(delta) {
+    const filtered = getFilteredTracks();
+    if (!filtered || filtered.length === 0) return;
+    window.selectCrateTrack(selectedCrateIndex + delta);
+};
+
+window.loadSelectedCrateTrack = function(preferredDeck) {
+    const filtered = getFilteredTracks();
+    if (!filtered || filtered.length === 0) return;
+    const track = filtered[selectedCrateIndex];
+    if (!track) return;
+
+    let targetDeck = preferredDeck;
+    if (!targetDeck && window.djMixer) {
+        if (window.djMixer.deckA?.audio?.paused) targetDeck = 'a';
+        else if (window.djMixer.deckB?.audio?.paused) targetDeck = 'b';
+        else targetDeck = 'a';
+    }
+    targetDeck = targetDeck || 'a';
+    window.loadTrackToDeck(targetDeck, track.rel_path || track.name, track.stem);
+};
+
 function renderCrateTable() {
     if (!crateTrackList) return;
     const filtered = getFilteredTracks();
@@ -543,14 +584,16 @@ function renderCrateTable() {
         return;
     }
 
+    if (selectedCrateIndex >= filtered.length) selectedCrateIndex = 0;
+
     crateTrackList.innerHTML = filtered.map((track, idx) => `
-        <tr class="crate-track-row" id="crate-row-${idx}">
+        <tr class="crate-track-row ${idx === selectedCrateIndex ? 'selected-track' : ''}" id="crate-row-${idx}" onclick="selectCrateTrack(${idx})" ondblclick="loadSelectedCrateTrack()">
             <td class="crate-track-name-cell" title="${escapeHtml(track.name)}">🎵 ${escapeHtml(track.stem)}</td>
             <td>${track.size_mb}M</td>
             <td><span style="color:var(--deck-a-color); font-weight:700;">${escapeHtml(track.ext)}</span></td>
             <td style="text-align:right;">
-                <button class="btn-load-inline load-a" onclick="loadTrackToDeck('a', '${encodeURIComponent(track.rel_path || track.name)}', '${encodeURIComponent(track.stem)}')">👈 A</button>
-                <button class="btn-load-inline load-b" onclick="loadTrackToDeck('b', '${encodeURIComponent(track.rel_path || track.name)}', '${encodeURIComponent(track.stem)}')">B 👉</button>
+                <button class="btn-load-inline load-a" onclick="event.stopPropagation(); loadTrackToDeck('a', '${encodeURIComponent(track.rel_path || track.name)}', '${encodeURIComponent(track.stem)}')">👈 A</button>
+                <button class="btn-load-inline load-b" onclick="event.stopPropagation(); loadTrackToDeck('b', '${encodeURIComponent(track.rel_path || track.name)}', '${encodeURIComponent(track.stem)}')">B 👉</button>
             </td>
         </tr>
     `).join('');
@@ -559,6 +602,20 @@ function renderCrateTable() {
 if (crateSearchInput) {
     crateSearchInput.addEventListener('input', renderCrateTable);
 }
+
+document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        window.navigateCrateBrowser(1);
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        window.navigateCrateBrowser(-1);
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        window.loadSelectedCrateTrack(e.shiftKey ? 'b' : 'a');
+    }
+});
 
 function renderTrackList() {
     if (!trackList) return;
